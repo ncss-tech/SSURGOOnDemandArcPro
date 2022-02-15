@@ -579,7 +579,7 @@ try:
     
         if gType == 'geo':
             
-            arcpy.AddMessage(geoResults)
+            arcpy.AddError(geoResults)
             
             # clean up temporary files
             for f in arcpy.ListFeatureClasses("*_" + rid):

@@ -528,7 +528,7 @@ try:
         if gtype == 'geo':
             
             # display the return messgae
-            arcpy.Error(geoResults)
+            arcpy.AddError(geoResults)
             
             # clean up temporary files
             for f in arcpy.ListFeatureClasses("*_" + rid):
