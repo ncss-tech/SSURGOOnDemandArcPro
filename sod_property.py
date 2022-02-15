@@ -5,7 +5,7 @@ Created on Tue Nov 23 10:53:09 2021
 @author: Charles.Ferguson
 """
 
-def sdaCall(q):
+def sdaCall(q, var=str):
     
     import requests, json
     from json.decoder import JSONDecodeError
@@ -31,19 +31,19 @@ def sdaCall(q):
         # cols = qData.get('Table')[0]
         # data = qData.get('Table')[1:]
             
-        return data
+        return True, data, var
         
-    except (exceptions.InvalidURL, exceptions.HTTPError, exceptions.Timeout):
-        print('Requests error, Soil Data Access offline??')
+    except requests.exceptions.RequestException as e:
+        return False, e, var
         
-    except JSONDecodeError as err:
-        print('JSON Decode error: ' + err.msg)
-        print('This usually happens when the extent is too large, try smaller extent.')
-     
+    except JSONDecodeError as e:
+        
+        msg = ('JSON Decode error: ' + e.msg)
+        return False, msg, var
     
     except Exception as e:
-        print('Unhandled error in sdaCall')
-        print(e)
+        arcpy.AddMessage('Unhandled error in sdaCall')
+        return False, e, var
         
 def tabRequest(aProp):
 
@@ -130,7 +130,7 @@ def tabRequest(aProp):
         pQry = """SELECT areasymbol, musym, muname, mukey
         INTO #kitchensink
         FROM legend  AS lks
-        INNER JOIN  mapunit AS muks ON muks.lkey = lks.lkey AND muks.mukey IN (""" + keys + """)
+        INNER JOIN  mapunit AS muks ON muks.lkey = lks.lkey AND muks.mukey  IN (""" + keys + """)
         SELECT mu1.mukey, cokey, comppct_r,
         SUM (comppct_r) over(partition by mu1.mukey ) AS SUM_COMP_PCT
         INTO #comp_temp
@@ -149,20 +149,20 @@ def tabRequest(aProp):
         CAST (CASE WHEN hzdepb_r > """ + bDep + """  THEN """ + bDep + """ ELSE hzdepb_r END - CASE WHEN hzdept_r <""" + tDep + """ THEN """ + tDep + """ ELSE hzdept_r END AS decimal (5,2)) AS thickness,
         comppct_r,
         CAST (SUM (CASE WHEN hzdepb_r > """ + bDep + """  THEN """ + bDep + """ ELSE hzdepb_r END - CASE WHEN hzdept_r <""" + tDep + """ THEN """ + tDep + """ ELSE hzdept_r END) over(partition by c.cokey) AS decimal (5,2)) AS sum_thickness,
-        CAST (ISNULL (""" + aProp + """ , 0) AS decimal (5,2))AS """ + aProp + """ 
+        CAST (ISNULL (""" + aProp + """ , 0) AS decimal (5,2))AS """ + aProp + """
         INTO #main
         FROM legend  AS l
         INNER JOIN  mapunit AS mu ON mu.lkey = l.lkey AND mu.mukey IN (""" + keys + """)
         INNER JOIN  component AS c ON c.mukey = mu.mukey
         INNER JOIN chorizon AS ch ON ch.cokey=c.cokey AND hzname NOT LIKE '%O%'AND hzname NOT LIKE '%r%'
-        AND hzdepb_r >""" + tDep + """ AND hzdept_r <""" + bDep + """ 
+        AND hzdepb_r >""" + tDep + """ AND hzdept_r <""" + bDep + """
         INNER JOIN chtexturegrp AS cht ON ch.chkey=cht.chkey  WHERE cht.rvindicator = 'yes' AND  ch.hzdept_r IS NOT NULL
         AND
         texture NOT LIKE '%PM%' and texture NOT LIKE '%DOM' and texture NOT LIKE '%MPT%' and texture NOT LIKE '%MUCK' and texture NOT LIKE '%PEAT%' and texture NOT LIKE '%br%' and texture NOT LIKE '%wb%'
         ORDER BY areasymbol, musym, muname, mu.mukey, comppct_r DESC, cokey,  hzdept_r, hzdepb_r
         SELECT #main.areasymbol, #main.musym, #main.muname, #main.MUKEY,
         #main.COKEY, #main.CHKEY, #main.compname, hzname, hzdept_r, hzdepb_r, hzdept_r_ADJ, hzdepb_r_ADJ, thickness, sum_thickness, """ + aProp + """ , comppct_r, SUM_COMP_PCT, WEIGHTED_COMP_PCT ,
-        SUM((thickness/sum_thickness ) * """ + aProp + """  )over(partition by #main.COKEY)AS COMP_WEIGHTED_AVERAGE
+        SUM((thickness/sum_thickness ) * """ + aProp + """)over(partition by #main.COKEY)AS COMP_WEIGHTED_AVERAGE
         INTO #comp_temp2
         FROM #main
         INNER JOIN #comp_temp3 ON #comp_temp3.cokey=#main.cokey
@@ -173,7 +173,7 @@ def tabRequest(aProp):
         GROUP BY  #comp_temp2.MUKEY,#comp_temp2.COKEY, WEIGHTED_COMP_PCT, COMP_WEIGHTED_AVERAGE
         SELECT areasymbol, musym, muname,
         #kitchensink.mukey, #last_step.COKEY,
-        CAST (SUM (COMP_WEIGHTED_AVERAGE1) over(partition by #kitchensink.mukey) as decimal(5,2))AS """ + aProp + """ 
+        CAST (SUM (COMP_WEIGHTED_AVERAGE1) over(partition by #kitchensink.mukey) as decimal(5,2))AS """ + aProp + """
         INTO #last_step2
         FROM #last_step
         RIGHT OUTER JOIN #kitchensink ON #kitchensink.mukey=#last_step.mukey
@@ -183,7 +183,7 @@ def tabRequest(aProp):
         #last_step2.mukey, #last_step2.""" + aProp + """
         FROM #last_step2
         LEFT OUTER JOIN #last_step ON #last_step.mukey=#last_step2.mukey
-        GROUP BY #last_step2.areasymbol, #last_step2.musym, #last_step2.muname, #last_step2.mukey, #last_step2.""" + aProp + """ 
+        GROUP BY #last_step2.areasymbol, #last_step2.musym, #last_step2.muname, #last_step2.mukey, #last_step2.""" + aProp + """
         ORDER BY #last_step2.areasymbol, #last_step2.musym, #last_step2.muname, #last_step2.mukey, #last_step2.""" + aProp
     elif aggMethod == "Dominant Condition":
         pQry = """SELECT areasymbol, musym, muname, mu.mukey/1  AS mukey,
@@ -211,7 +211,7 @@ def rslvProps(aProp):
     propDict = {'0.1 bar H2O - Rep Value' : 'wtenthbar_r', '0.33 bar H2O - Rep Value' : 'wthirdbar_r', '15 bar H2O - Rep Value' : 'wfifteenbar_r', 'Available Water Capacity - Rep Value' : 'awc_r', 'Bray 1 Phosphate - Rep Value' : 'pbray1_r', 'Bulk Density 0.1 bar H2O - Rep Value' : 'dbtenthbar_r', 'Bulk Density 0.33 bar H2O - Rep Value' : 'dbthirdbar_r', 'Bulk Density 15 bar H2O - Rep Value' : 'dbfifteenbar_r', 'Bulk Density oven dry - Rep Value' : 'dbovendry_r', 'CaCO3 Clay - Rep Value' : 'claysizedcarb_r', 'Calcium Carbonate - Rep Value' : 'caco3_r', 'Cation Exchange Capcity - Rep Value' : 'cec7_r', 'Coarse Sand - Rep Value' : 'sandco_r', 'Coarse Silt - Rep Value' : 'siltco_r', 'Corrosion of Steel' : 'corsteel', 'Corrosion of Concrete' : 'corcon', 'Drainage Class' : 'drainagecl', 'Effective Cation Exchange Capcity - Rep Value' : 'ecec_r', 'Electrial Conductivity 1:5 by volume - Rep Value' : 'ec15_r', 'Electrical Conductivity - Rep Value' : 'ec_r', 'Exchangeable Sodium Percentage - Rep Value' : 'esp_r', 'Extract Aluminum - Rep Value' : 'extral_r', 'Extractable Acidity - Rep Value' : 'extracid_r', 'Fine Sand - Rep Value' : 'sandfine_r', 'Fine Silt - Rep Value' : 'siltfine_r', 'Free Iron - Rep Value' : 'freeiron_r', 'Gypsum - Rep Value' : 'gypsum_r', 'Hydrologic Group' : 'hydgrp', 'Kf' : 'kffact', 'Ki ' : 'kifact', 'Kr ' : 'krfact', 'Kw ' : 'kwfact', 'LEP - Rep Value' : 'lep_r', 'Liquid Limit - Rep Value' : 'll_r', 'Medium Sand - Rep Value' : 'sandmed_r', 'Organic Matter - Rep Value' : 'om_r', 'Oxalate Aluminum - Rep Value' : 'aloxalate_r', 'Oxalate Iron - Rep Value' : 'feoxalate_r', 'Oxalate Phosphate - Rep Value' : 'poxalate_r', 'Plasticity Index - Rep Value' : 'pi_r', 'Rock Fragments 3 - 10 cm - Rep Value' : 'frag3to10_r', 'Rock Fragments > 10 cm - Rep Value' : 'fraggt10_r', 'Rubbed Fiber % - Rep Value' : 'fiberrubbedpct_r', 'Satiated H2O - Rep Value' : 'wsatiated_r', 'Saturated Hydraulic Conductivity - Rep Value' : 'ksat_r', 'Sodium Adsorption Ratio - Rep Value' : 'sar_r', 'Sum of Bases - Rep Value' : 'sumbases_r', 'Taxonomic Class Name' : 'taxclname', 'Taxonomic Order' : 'taxorder', 'Taxonomic Suborder' : 'taxsuborder', 'Taxonomic Temperature Regime' : 'taxtempregime', 'Total Clay - Rep Value' : 'claytotal_r', 'Total Phosphate - Rep Value' : 'ptotal_r', 'Total Rock Fragment Volume - Rep Value' : 'fragvoltot_r', 'Total Sand - Rep Value' : 'sandtotal_r', 'Total Silt - Rep Value' : 'silttotal_r', 'Unrubbed Fiber % - Rep Value' : 'fiberunrubbedpct_r', 'Very Coarse Sand - Rep Value' : 'sandvc_r', 'Very Fine Sand - Rep Value' : 'sandvf_r', 'Water Soluble Phosphate - Rep Value' : 'ph2osoluble_r', 'Wind Erodibility Group' : 'weg', 'Wind Erodibility Index' : 'wei', 'no. 10 sieve - Rep Value' : 'sieveno10_r', 'no. 200 sieve - Rep Value' : 'sieveno200_r', 'no. 4 sieve - Rep Value' : 'sieveno4_r', 'no. 40 sieve - Rep Value' : 'sieveno40_r', 'pH .01M CaCl2 - Rep Value' : 'ph01mcacl2_r', 'pH 1:1 water - Rep Value' : 'ph1to1h2o_r', 'pH Oxidized - Rep Value' : 'phoxidized_r', 't Factor' : 'tfact'}
     propVal = propDict.get(aProp)
 
-    arcpy.AddMessage(propVal)
+    # arcpy.AddMessage(propVal)
     return propVal
 
 
@@ -356,39 +356,69 @@ addToGeom = arcpy.GetParameterAsText(7)
 
 arcpy.env.workspace = dest
 
+fail = list()
+
+jobs = 1 + (len(props))
+n = 1
+arcpy.SetProgressor("default", "SSURGO On-Demand: Jobs(" + str(n) + " of " + str(jobs) + ")")
+
 try:
 
     # ========================= Get the SSURGO Geometry =========================
-    
+    arcpy.AddMessage(u"\u200B")
+    arcpy.AddMessage('Collecting SSURGO geometry...')
+    arcpy.AddMessage(u"\u200B")
     desc = arcpy.Describe(clu_in)
     sel = desc.FIDSet
     if sel  == '':
         err = "Select at least 1 feature"
-        arcpy.AddMessage(err)
-        raise TypeError(err)
+        # arcpy.AddMessage(err)
+        raise RuntimeError(err)
     
-    # create a copy of the selected features
-    arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
+    # get coordinate system
+    sr = desc.spatialReference
     
-    desc = arcpy.Describe(os.path.join(dest, "clu_sel_" + rid))
-    
-    # if not desc.spatialReference.PCSCode != 3857:
+    pcsCode = sr.PCSCode
+    # projected coordinate systems need to be reprojected bc we need lat/long 
+    if pcsCode != 0:
+        code = sr.GCS.GCSCode
         
-    code = desc.spatialReference.GCSCode
-    if code == 4326:
-        hull_target = os.path.join(dest, "clu_sel_" + rid)
+        # if pcs GCS is 4326, we do not transformation
+        if code == 4326:
+            arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
+            arcpy.management.Project(os.path.join(dest, "clu_sel_" + rid), os.path.join(dest, "clu_prj_" + rid), arcpy.SpatialReference(4326))
+            hull_target = os.path.join(dest, "clu_prj_" + rid)
     
-    # NAD83 and NAD83(2011) 
-    elif code == 4269 or code == 6318:
-        trm = "WGS_1984_(ITRF00)_To_NAD_1983"
-        arcpy.management.Project(os.path.join(dest, "clu_sel_" + rid), os.path.join(dest, "clu_prj_" + rid), arcpy.SpatialReference(4326), trm)
-        hull_target =  os.path.join(dest, "clu_prj_" + rid)
+        # NAD83 and NAD83(2011), need transformation
+        elif code == 4269 or code == 6318:
+            arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
+            trm = "WGS_1984_(ITRF00)_To_NAD_1983"
+            arcpy.management.Project(os.path.join(dest, "clu_sel_" + rid), os.path.join(dest, "clu_prj_" + rid), arcpy.SpatialReference(4326), trm)
+            hull_target =  os.path.join(dest, "clu_prj_" + rid)
+        
+        else:
+            err = 'This tool only supports spatial reference objects based on WGS84 or NAD83'
+            raise TypeError(err)
     
     else:
-        err = 'This tool only supports spatial reference objects based on WGS84 or NAD83'
-        if arcpy.Exists(os.path.join(dest, "clu_sel_" + rid)):
-            arcpy.management.Delete(os.path.join(dest, "clu_sel_" + rid))
-        raise TypeError(err)
+        code = sr.GCS.GCSCode
+        
+        #  no transformation needed
+        if code == 4326:
+            arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
+            # arcpy.management.Project(os.path.join(dest, "clu_sel_" + rid), os.path.join(dest, "clu_prj_" + rid), arcpy.SpatialReference(4326))
+            hull_target = os.path.join(dest, "clu_sel_" + rid)
+    
+        # NAD83 and NAD83(2011), need transformation
+        elif code == 4269 or code == 6318:
+            arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
+            trm = "WGS_1984_(ITRF00)_To_NAD_1983"
+            arcpy.management.Project(os.path.join(dest, "clu_sel_" + rid), os.path.join(dest, "clu_prj_" + rid), arcpy.SpatialReference(4326), trm)
+            hull_target =  os.path.join(dest, "clu_prj_" + rid)
+        
+        else:
+            err = 'This tool only supports spatial reference objects based on WGS84 or NAD83'
+            raise TypeError(err)
     
     # dissolve feature(s) into 1 part
     # get the smallest feature possible and its wkt
@@ -398,6 +428,13 @@ try:
             hull = row[0].convexHull()
             wkt = hull.WKT
             # arcpy.AddMessage(wkt)
+            
+        if not wkt.startswith("MULTIPOLYGON ("):
+            for f in arcpy.ListFeatureClasses("*_" + rid):
+                arcpy.management.Delete(f)
+            msg = 'The input AOI appears to have extended attributes (Z,M).  This is not supported.'
+            raise TypeError(msg)
+        # arcpy.AddMessage(wkt)
     
     geoQ = """~DeclareGeometry(@aoi)~
     select @aoi = geometry::STGeomFromText(
@@ -410,91 +447,144 @@ try:
     from @intersectedPolygonGeometries"""
     
     # arcpy.AddMessage(geoQ)
-    geoResults = sdaCall(geoQ)
+    gBool, geoResults, gType = sdaCall(geoQ, var='geo')
     
-    geoCols = geoResults.get('Table')[0]
-    geoMeta = geoResults.get('Table')[1]
-    geoData = geoResults.get('Table')[2:]
-    
-    # arcpy.AddMessage(geoData)
-    
-    arcpy.management.CreateFeatureclass(dest, "sod_temp_" + rid, "POLYGON", None, None, None, arcpy.SpatialReference(4326))
-    arcpy.management.AddField(os.path.join(dest, "sod_temp_" + rid), "mukey", "TEXT", None, None, "30")
-    
-    with arcpy.da.InsertCursor(os.path.join(dest, "sod_temp_" + rid), ["SHAPE@WKT", "mukey"]) as cursor:
-        for data in geoData:
-            mukey = data[0]
-            geom = data[1]
-                
-            row = geom, mukey
-            cursor.insertRow(row)
+    if gBool:
         
-    arcpy.analysis.Clip(os.path.join(dest, "sod_temp_" + rid), os.path.join(dest, "sod_sngl_prt_" + rid),  os.path.join(dest, "SSURGO_On_Demand_property"))
-    
-    # clean up temporary files
-    for f in arcpy.ListFeatureClasses("*_" + rid):
-        arcpy.management.Delete(f)
+        if len(geoResults) == 0:
         
-    
-    # ========================= Get the mukeys of the returned geometry =========================
-    
-    with arcpy.da.SearchCursor(os.path.join(dest, "SSURGO_On_Demand_property"), "mukey") as rows:
-        geoKeys = sorted({row[0] for row in rows})
-        
-    keys = ",".join(map("'{0}'".format, geoKeys))
-    
-    # ========================= Get the mukeys of the returned geometry =========================
-    
-    # this dictionary is used for naming tables appropriately
-    aggAbbr = dict()
-    aggAbbr['Dominant Condition'] = 'dom_cond'
-    aggAbbr['Dominant Component (Category)'] = 'dom_comp_cat'
-    aggAbbr['Dominant Component (Numeric)'] = 'dom_comp_num'
-    aggAbbr['Weighted Average'] = 'wtavg'
-    aggAbbr['Min\Max'] = mmC
-    
-    
-    for prop in props:
-        
-        sdaCol = rslvProps(prop)
-        theQ = tabRequest(sdaCol)
-        # arcpy.AddMessage(theQ)
-        
-        tabData = sdaCall(theQ)
-        tabCols = tabData.get('Table')[0]
-        tabMeta = tabData.get('Table')[1]
-        tabData = tabData.get('Table')[2:]        
+            for f in arcpy.ListFeatureClasses("*_" + rid):
+                arcpy.management.Delete(f)
             
-        tblinfo = (aggAbbr.get(aggMethod), sdaCol, tDep, bDep)
+            err = 'Received no SDA geometry to process. Exiting'
+            raise ValueError(err)
     
-        newName = "sod_" +  "_".join(map("{0}".format, tblinfo))
-        newName = newName.replace("__", "_")
-        if newName.endswith("_"):
-            newName = newName[:-1]
-        
-        # arcpy.AddMessage(newName)
-        
-        tbool, tval = CreateNewTable("temp_table", tabCols, tabMeta)
-        
-        if tbool:
-        
-            with arcpy.da.InsertCursor(tval, tabCols) as cursor:
-                for row in tabData:
-                    cursor.insertRow(row)
-                    
-            arcpy.conversion.TableToTable(tval, dest, newName)
-            arcpy.management.Delete(tval)
-        
         else:
-            arcpy.AddMessage(tval)
+            geoCols = geoResults.get('Table')[0]
+            geoMeta = geoResults.get('Table')[1]
+            geoData = geoResults.get('Table')[2:]
             
+            # arcpy.AddMessage(geoData)
+            
+            arcpy.management.CreateFeatureclass(dest, "sod_temp_" + rid, "POLYGON", None, None, None, arcpy.SpatialReference(4326))
+            arcpy.management.AddField(os.path.join(dest, "sod_temp_" + rid), "mukey", "TEXT", None, None, "30")
+            
+            with arcpy.da.InsertCursor(os.path.join(dest, "sod_temp_" + rid), ["SHAPE@WKT", "mukey"]) as cursor:
+                for data in geoData:
+                    mukey = data[0]
+                    geom = data[1]
+                        
+                    row = geom, mukey
+                    cursor.insertRow(row)
+                
+            arcpy.analysis.Clip(os.path.join(dest, "sod_temp_" + rid), os.path.join(dest, "sod_sngl_prt_" + rid),  os.path.join(dest, "SSURGO_On_Demand_property"))
+            
+            # clean up temporary files
+            for f in arcpy.ListFeatureClasses("*_" + rid):
+                arcpy.management.Delete(f)
+                
+            
+            # ========================= Get the mukeys of the returned geometry =========================
+            
+            with arcpy.da.SearchCursor(os.path.join(dest, "SSURGO_On_Demand_property"), "mukey") as rows:
+                geoKeys = sorted({row[0] for row in rows})
+                
+            keys = ",".join(map("'{0}'".format, geoKeys))
+            
+            # ========================= Get the mukeys of the returned geometry =========================
+            
+            # this dictionary is used for naming tables appropriately
+            aggAbbr = dict()
+            aggAbbr['Dominant Condition'] = 'dom_cond'
+            aggAbbr['Dominant Component (Category)'] = 'dom_comp_cat'
+            aggAbbr['Dominant Component (Numeric)'] = 'dom_comp_num'
+            aggAbbr['Weighted Average'] = 'wtavg'
+            aggAbbr['Min\Max'] = mmC
+            
+            
+            for prop in props:
+                
+                arcpy.AddMessage('Running property: ' + prop )
+                
+                n += 1
+                arcpy.SetProgressorLabel("SSURGO On-Demand: Jobs (" + str(n) + " of " + str(jobs) + ")")
+                
+                sdaCol = rslvProps(prop)
+                theQ = tabRequest(sdaCol)
+                # arcpy.AddMessage(theQ)
+                
+                tabBool, tabData, tabType = sdaCall(theQ, var='tab')
+                
+                if tabBool:
+                    
+                    if len(tabData) == 0:
+                        fail.append(prop)
+                        arcpy.AddMessage('No property information returned for ') + prop
+                    
+                    else:
+                        tabCols = tabData.get('Table')[0]
+                        tabMeta = tabData.get('Table')[1]
+                        tabData = tabData.get('Table')[2:]        
+                            
+                        tblinfo = (aggAbbr.get(aggMethod), sdaCol, tDep, bDep)
+                    
+                        newName = "sod_" +  "_".join(map("{0}".format, tblinfo))
+                        newName = newName.replace("__", "_")
+                        if newName.endswith("_"):
+                            newName = newName[:-1]
+                        
+                        # arcpy.AddMessage(newName)
+                        
+                        tbool, tval = CreateNewTable("temp_table", tabCols, tabMeta)
+                        
+                        if tbool:
+                        
+                            with arcpy.da.InsertCursor(tval, tabCols) as cursor:
+                                for row in tabData:
+                                    cursor.insertRow(row)
+                                    
+                            arcpy.conversion.TableToTable(tval, dest, newName)
+                            arcpy.management.Delete(tval)
+                        
+                        else:
+                            arcpy.AddMessage(tval)
+                            
+                        
+                        if addToGeom == 'true':
+                            
+                            sod_geom = os.path.join(dest, "SSURGO_On_Demand_property")
+                            sod_tab = os.path.join(dest, newName)
+                            
+                            updateTable(sod_geom, sod_tab)
+                            
+                        # add empty line to separate any messages
+                        arcpy.AddMessage(u"\u200B")
+                        
+                else:
+                    fail.append(prop)
+                    arcpy.AddMessage('Error while collecting information returned for ' + prop)
+                    arcpy.AddMessage(tabData)
+    else:
+    
+        if gType == 'geo':
+            
+            arcpy.AddMessage(geoResults)
+            
+            # clean up temporary files
+            for f in arcpy.ListFeatureClasses("*_" + rid):
+                arcpy.management.Delete(f)
+            
+            err = 'Unable to collect SDA geometry to process. Exiting'
+            raise ValueError(err)
         
-        if addToGeom == 'true':
-            
-            sod_geom = os.path.join(dest, "SSURGO_On_Demand_property")
-            sod_tab = os.path.join(dest, newName)
-            
-            updateTable(sod_geom, sod_tab)
+                
+    
+    if len(fail) > 0:
+        
+        fstr = ','.join(map("{0}".format, fail))
+        arcpy.AddError('The following property(s) failed to execute or returned no results:')
+        arcpy.AddError(fstr)
+        arcpy.AddMessage(u"\u200B")
         
 except arcpy.ExecuteError: 
     arcpy.AddMessage(arcpy.GetMessages())

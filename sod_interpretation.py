@@ -5,7 +5,7 @@ Created on Tue Nov 23 10:53:09 2021
 @author: Charles.Ferguson
 """
 
-def sdaCall(q):
+def sdaCall(q, var=str):
     
     import requests, json
     from json.decoder import JSONDecodeError
@@ -30,20 +30,19 @@ def sdaCall(q):
         # cols = qData.get('Table')[0]
         # data = qData.get('Table')[1:]
             
-        return data
+        return True, data, var
         
     except JSONDecodeError as e:
-        err = 'This usually happens with incorrect syntax or too large an extent.'
-        print('JSON Decode error: ' + e.msg + '\n' + err)
-        raise AttributeError('Received NoneType from SDA')
+        msg = 'JSON Decode error: ' + e.msg
+        return False, msg, var
         
     except requests.exceptions.RequestException as e:
-        raise SystemExit(e)
-        
+        msg = e
+        return False, msg, var
     except Exception as e:
-        print('Unhandled error')
-        print(e)
-        
+        msg = 'Unhadled error in sdaCall ' + e
+        return False, msg, var
+                
 
 def tabRequest(interp, keys):
 
@@ -284,36 +283,71 @@ addToGeom = arcpy.GetParameterAsText(4)
 
 arcpy.env.workspace = dest
 
+fail = list()
+
+jobs = 1 + (len(interpParam))
+n = 1
+arcpy.SetProgressor("default", "SSURGO On-Demand: Jobs(" + str(n) + " of " + str(jobs) + ")")
+
 # ========================= Get the SSURGO Geometry =========================
 try:
+    arcpy.AddMessage(u"\u200B")
+    arcpy.AddMessage('Collecting SSURGO geometry...')
+    arcpy.AddMessage(u"\u200B")
     
     desc = arcpy.Describe(clu_in)
     sel = desc.FIDSet
     if sel  == '':
         err = "Select at least 1 feature"
-        arcpy.AddMessage(err)
-        raise TypeError(err)
+        # arcpy.AddMessage(err)
+        raise RuntimeError(err)
     
     
     # get coordinate system
-    code = desc.spatialReference.GCSCode
+    sr = desc.spatialReference
     
+    pcsCode = sr.PCSCode
     
-    if code == 4326:
-        arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
-        hull_target = os.path.join(dest, "clu_sel_" + rid)
+    # projected coordinate systems need to be reprojected bc we need lat/long
+    if pcsCode != 0:
+        code = sr.GCS.GCSCode
     
-    # NAD83 and NAD83(2011) 
-    elif code == 4269 or code == 6318:
-        arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
-        trm = "WGS_1984_(ITRF00)_To_NAD_1983"
-        arcpy.management.Project(os.path.join(dest, "clu_sel_" + rid), os.path.join(dest, "clu_prj_" + rid), arcpy.SpatialReference(4326), trm)
-        hull_target =  os.path.join(dest, "clu_prj_" + rid)
+        if code == 4326:
+            arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
+            arcpy.management.Project(os.path.join(dest, "clu_sel_" + rid), os.path.join(dest, "clu_prj_" + rid), arcpy.SpatialReference(4326))
+            hull_target = os.path.join(dest, "clu_prj_" + rid)
+    
+        # NAD83 and NAD83(2011), needs transformation
+        elif code == 4269 or code == 6318:
+            arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
+            trm = "WGS_1984_(ITRF00)_To_NAD_1983"
+            arcpy.management.Project(os.path.join(dest, "clu_sel_" + rid), os.path.join(dest, "clu_prj_" + rid), arcpy.SpatialReference(4326), trm)
+            hull_target =  os.path.join(dest, "clu_prj_" + rid)
+        
+        else:
+            err = 'This tool only supports spatial reference objects based on WGS84 or NAD83'
+            raise TypeError(err)
     
     else:
-        err = 'This tool only supports spatial reference objects based on WGS84 or NAD83'
-        raise TypeError(err)
+        code = sr.GCS.GCSCode
+        
+        # no transformation needed
+        if code == 4326:
+            arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
+            # arcpy.management.Project(os.path.join(dest, "clu_sel_" + rid), os.path.join(dest, "clu_prj_" + rid), arcpy.SpatialReference(4326))
+            hull_target = os.path.join(dest, "clu_sel_" + rid)
     
+        # NAD83 and NAD83(2011), needs transformation 
+        elif code == 4269 or code == 6318:
+            arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
+            trm = "WGS_1984_(ITRF00)_To_NAD_1983"
+            arcpy.management.Project(os.path.join(dest, "clu_sel_" + rid), os.path.join(dest, "clu_prj_" + rid), arcpy.SpatialReference(4326), trm)
+            hull_target =  os.path.join(dest, "clu_prj_" + rid)
+        
+        else:
+            err = 'This tool only supports spatial reference objects based on WGS84 or NAD83'
+            raise TypeError(err)
+        
     
     # dissolve feature(s) into 1 part
     # get the smallest feature possible and its wkt
@@ -322,6 +356,12 @@ try:
         for row in rows:
             hull = row[0].convexHull()
             wkt = hull.WKT
+            
+            if not wkt.startswith("MULTIPOLYGON ("):
+                for f in arcpy.ListFeatureClasses("*_" + rid):
+                    arcpy.management.Delete(f)
+                msg = 'The input AOI appears to have extended attributes (Z,M).  This is not supported.'
+                raise TypeError(msg)
             # arcpy.AddMessage(wkt)
     
     geoQ = """~DeclareGeometry(@aoi)~
@@ -335,106 +375,166 @@ try:
     from @intersectedPolygonGeometries"""
     
     # arcpy.AddMessage(geoQ)
-    geoResults = sdaCall(geoQ)
     
-    geoCols = geoResults.get('Table')[0]
-    geoMeta = geoResults.get('Table')[1]
-    geoData = geoResults.get('Table')[2:]
+    geoBool, geoResults, gtype = sdaCall(geoQ, var='geo')
     
-    # arcpy.AddMessage(geoData)
-    
-    arcpy.management.CreateFeatureclass(dest, "sod_temp_" + rid, "POLYGON", None, None, None, arcpy.SpatialReference(4326))
-    arcpy.management.AddField(os.path.join(dest, "sod_temp_" + rid), "mukey", "TEXT", None, None, "30")
-    
-    with arcpy.da.InsertCursor(os.path.join(dest, "sod_temp_" + rid), ["SHAPE@WKT", "mukey"]) as cursor:
-        for data in geoData:
-            mukey = data[0]
-            geom = data[1]
+    # the geometry query returned something
+    if geoBool:
+        
+        # if it's empty, bail, but clean-up first
+        if len(geoResults) == 0:
+            
+            for f in arcpy.ListFeatureClasses("*_" + rid):
+                arcpy.management.Delete(f)
                 
-            row = geom, mukey
-            cursor.insertRow(row)
-        
-    arcpy.analysis.Clip(os.path.join(dest, "sod_temp_" + rid), os.path.join(dest, "sod_sngl_prt_" + rid),  os.path.join(dest, "SSURGO_On_Demand_interpretation"))
-    
-    # clean up temporary files
-    for f in arcpy.ListFeatureClasses("*_" + rid):
-        arcpy.management.Delete(f)
-        
-    
-    # ========================= Get the mukeys of the returned geometry =========================
-    
-    with arcpy.da.SearchCursor(os.path.join(dest, "SSURGO_On_Demand_interpretation"), "mukey") as rows:
-        geoKeys = sorted({row[0] for row in rows})
-        
-    keys = ",".join(map("'{0}'".format, geoKeys))
-    
-    # ========================= Get the mukeys of the returned geometry =========================
-    
-    # this dictionary is used for naming tables appropriately
-    aggAbbr = dict()
-    aggAbbr['Dominant Condition'] = 'dom_cond'
-    aggAbbr['Dominant Component'] = 'dom_comp'
-    aggAbbr['Weighted Average'] = 'wtavg'
-    
-    
-    
-    for interp in interpParam:
-        
-        # this is a leftover, prob don't need to rename interp in validation
-        # with need to replace here
-        if interp.find("{:}") != -1:
-            interp = interp.replace("{:}", ";")
-        
-        # column names restricted in length, make small as possible
-        aliasA = interp.replace(" ", "")
-        aliasB = arcpy.ValidateFieldName(aliasA,dest)
-        aliasC = aliasB.replace("_", "") 
-        
-        alias = aliasC
-        
-        theQ = tabRequest(interp, keys)
-        # arcpy.AddMessage(theQ)
-        
-        tabData = sdaCall(theQ)
-        tabCols = tabData.get('Table')[0]
-        tabMeta = tabData.get('Table')[1]
-        tabData = tabData.get('Table')[2:]        
+            err = 'Received no SDA geometry to process. Exiting'
+            raise ValueError(err)
             
-        # tblinfo = (aggAbbr.get(aggMethod), sdaCol, tDep, bDep)
-        tblNameAlias = arcpy.ValidateTableName(interp, dest)
-        tblinfo = (aggAbbr.get(aggMethod), tblNameAlias)
-    
-        newName = "sod_" +  "_".join(map("{0}".format, tblinfo))
-        newName = newName.replace("___", "_")
-        newName = newName.replace("__", "_")
         
-        if newName.endswith("_"):
-            newName = newName[:-1]
+        geoCols = geoResults.get('Table')[0]
+        geoMeta = geoResults.get('Table')[1]
+        geoData = geoResults.get('Table')[2:]
         
-        arcpy.AddMessage(newName)
+        # arcpy.AddMessage(geoData)
         
-        tbool, tval = CreateNewTable("temp_table", tabCols, tabMeta)
+        arcpy.management.CreateFeatureclass(dest, "sod_temp_" + rid, "POLYGON", None, None, None, arcpy.SpatialReference(4326))
+        arcpy.management.AddField(os.path.join(dest, "sod_temp_" + rid), "mukey", "TEXT", None, None, "30")
         
-        if tbool:
-        
-            with arcpy.da.InsertCursor(tval, tabCols) as cursor:
-                for row in tabData:
-                    cursor.insertRow(row)
+        with arcpy.da.InsertCursor(os.path.join(dest, "sod_temp_" + rid), ["SHAPE@WKT", "mukey"]) as cursor:
+            for data in geoData:
+                mukey = data[0]
+                geom = data[1]
                     
-            arcpy.conversion.TableToTable(tval, dest, newName)
-            arcpy.management.Delete(tval)
+                row = geom, mukey
+                cursor.insertRow(row)
+            
+        arcpy.analysis.Clip(os.path.join(dest, "sod_temp_" + rid), os.path.join(dest, "sod_sngl_prt_" + rid),  os.path.join(dest, "SSURGO_On_Demand_interpretation"))
         
-        else:
-            arcpy.AddMessage(tval)
+        # clean up temporary files
+        for f in arcpy.ListFeatureClasses("*_" + rid):
+            arcpy.management.Delete(f)
             
         
-        if addToGeom == 'true':
+        # ========================= Get the mukeys of the returned geometry =========================
+        
+        with arcpy.da.SearchCursor(os.path.join(dest, "SSURGO_On_Demand_interpretation"), "mukey") as rows:
+            geoKeys = sorted({row[0] for row in rows})
             
-            sod_geom = os.path.join(dest, "SSURGO_On_Demand_interpretation")
-            sod_tab = os.path.join(dest, newName)
+        keys = ",".join(map("'{0}'".format, geoKeys))
+        
+        # ========================= Get the mukeys of the returned geometry =========================
+        
+        # this dictionary is used for naming tables appropriately
+        aggAbbr = dict()
+        aggAbbr['Dominant Condition'] = 'dom_cond'
+        aggAbbr['Dominant Component'] = 'dom_comp'
+        aggAbbr['Weighted Average'] = 'wtavg'
+        
+        
+        
+        for interp in interpParam:
             
-            updateTable(sod_geom, sod_tab)
+            arcpy.AddMessage('Running interpretation: ' + interp)
+            n += 1
+            arcpy.SetProgressorLabel("SSURGO On-Demand: Jobs (" + str(n) + " of " + str(jobs) + ")")
             
+            # this is a leftover, prob don't need to rename interp in validation
+            # with need to replace here
+            if interp.find("{:}") != -1:
+                interp = interp.replace("{:}", ";")
+            
+            # column names restricted in length, make small as possible
+            aliasA = interp.replace(" ", "")
+            aliasB = arcpy.ValidateFieldName(aliasA,dest)
+            aliasC = aliasB.replace("_", "") 
+            
+            alias = aliasC
+            
+            theQ = tabRequest(interp, keys)
+            # arcpy.AddMessage(theQ)
+            
+            tabBool, tabData, qtype = sdaCall(theQ, var='tab')
+            
+            # the tabular request returned something
+            if tabBool:
+                
+                if len(tabData) == 0:
+                    fail.append(interp)
+                    arcpy.AddMessage('No interpretation information returned for ') + interp
+                
+                else:
+                    tabCols = tabData.get('Table')[0]
+                    tabMeta = tabData.get('Table')[1]
+                    tabData = tabData.get('Table')[2:]        
+                        
+                    # tblinfo = (aggAbbr.get(aggMethod), sdaCol, tDep, bDep)
+                    tblNameAlias = arcpy.ValidateTableName(interp, dest)
+                    tblinfo = (aggAbbr.get(aggMethod), tblNameAlias)
+                
+                    newName = "sod_" +  "_".join(map("{0}".format, tblinfo))
+                    newName = newName.replace("___", "_")
+                    newName = newName.replace("__", "_")
+                    
+                    if newName.endswith("_"):
+                        newName = newName[:-1]
+                    
+                    # arcpy.AddMessage(newName)
+                    
+                    tbool, tval = CreateNewTable("temp_table", tabCols, tabMeta)
+                    
+                    if tbool:
+                    
+                        with arcpy.da.InsertCursor(tval, tabCols) as cursor:
+                            for row in tabData:
+                                cursor.insertRow(row)
+                                
+                        arcpy.conversion.TableToTable(tval, dest, newName)
+                        arcpy.management.Delete(tval)
+                    
+                    else:
+                        arcpy.AddMessage(tval)
+                        
+                    
+                    if addToGeom == 'true':
+                        
+                        sod_geom = os.path.join(dest, "SSURGO_On_Demand_interpretation")
+                        sod_tab = os.path.join(dest, newName)
+                        
+                        updateTable(sod_geom, sod_tab)
+                        
+                    # add line to separate messages
+                    arcpy.AddMessage(u"\u200B")
+                
+            # the tabular call failed, SDA down??? Proceed to the interp
+            else:
+                fail.append(interp)
+                arcpy.AddMessage('Error while collecting information returned for ' + interp)
+                arcpy.AddMessage(tabData)
+                
+    # the geo request failed, SDA down??? Bail, no geometry or mukeys, but clean up
+    else:
+        if gtype == 'geo':
+            
+            # display the return messgae
+            arcpy.Error(geoResults)
+            
+            # clean up temporary files
+            for f in arcpy.ListFeatureClasses("*_" + rid):
+                arcpy.management.Delete(f)
+            
+            # bail out
+            err = 'Unable to collect SDA geometry to process. Exiting'
+            raise ValueError(err)
+        
+        
+        
+    if len(fail) > 0:
+        
+        fstr = ','.join(map("{0}".format, fail))
+        arcpy.AddError('The following interpretation(s) failed to execute or returned no results:')
+        arcpy.AddError(fstr)
+        arcpy.AddMessage(u"\u200B")
+        
 except arcpy.ExecuteError: 
     arcpy.AddMessage(arcpy.GetMessages())
 
