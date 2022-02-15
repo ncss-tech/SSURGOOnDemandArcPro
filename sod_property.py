@@ -382,42 +382,53 @@ try:
     # projected coordinate systems need to be reprojected bc we need lat/long 
     if pcsCode != 0:
         code = sr.GCS.GCSCode
-        
-        # if pcs GCS is 4326, we do not transformation
+    
         if code == 4326:
             arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
             arcpy.management.Project(os.path.join(dest, "clu_sel_" + rid), os.path.join(dest, "clu_prj_" + rid), arcpy.SpatialReference(4326))
             hull_target = os.path.join(dest, "clu_prj_" + rid)
     
-        # NAD83 and NAD83(2011), need transformation
-        elif code == 4269 or code == 6318:
+        # NAD83 and NAD83(2011), needs transformation 
+        elif code == 4269:
             arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
             trm = "WGS_1984_(ITRF00)_To_NAD_1983"
             arcpy.management.Project(os.path.join(dest, "clu_sel_" + rid), os.path.join(dest, "clu_prj_" + rid), arcpy.SpatialReference(4326), trm)
             hull_target =  os.path.join(dest, "clu_prj_" + rid)
+            
+        elif code == 6318:
+            arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
+            trm = "WGS_1984_(ITRF08)_To_NAD_1983_2011"
+            arcpy.management.Project(os.path.join(dest, "clu_sel_" + rid), os.path.join(dest, "clu_prj_" + rid), arcpy.SpatialReference(4326), trm)
+            hull_target =  os.path.join(dest, "clu_prj_" + rid)
         
         else:
-            err = 'This tool only supports spatial reference objects based on WGS84 or NAD83'
+            err = 'This tool only supports spatial reference objects based on WGS84, NAD83, NAD83(2011)'
             raise TypeError(err)
     
     else:
         code = sr.GCS.GCSCode
         
-        #  no transformation needed
+        # no transformation needed
         if code == 4326:
             arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
             # arcpy.management.Project(os.path.join(dest, "clu_sel_" + rid), os.path.join(dest, "clu_prj_" + rid), arcpy.SpatialReference(4326))
             hull_target = os.path.join(dest, "clu_sel_" + rid)
     
-        # NAD83 and NAD83(2011), need transformation
-        elif code == 4269 or code == 6318:
+        # NAD83 and NAD83(2011), needs transformation 
+        elif code == 4269:
             arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
             trm = "WGS_1984_(ITRF00)_To_NAD_1983"
             arcpy.management.Project(os.path.join(dest, "clu_sel_" + rid), os.path.join(dest, "clu_prj_" + rid), arcpy.SpatialReference(4326), trm)
             hull_target =  os.path.join(dest, "clu_prj_" + rid)
+            
+        elif code == 6318:
+            arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
+            trm = "WGS_1984_(ITRF08)_To_NAD_1983_2011"
+            arcpy.management.Project(os.path.join(dest, "clu_sel_" + rid), os.path.join(dest, "clu_prj_" + rid), arcpy.SpatialReference(4326), trm)
+            hull_target =  os.path.join(dest, "clu_prj_" + rid)
         
         else:
-            err = 'This tool only supports spatial reference objects based on WGS84 or NAD83'
+            err = 'This tool only supports spatial reference objects based on WGS84, NAD83, NAD83(2011)'
             raise TypeError(err)
     
     # dissolve feature(s) into 1 part
