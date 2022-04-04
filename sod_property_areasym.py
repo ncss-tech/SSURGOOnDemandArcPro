@@ -6,48 +6,48 @@ Created on Tue Nov 23 10:53:09 2021
 """
 
 def sdaCall(q):
-    
+
     import requests, json
     from json.decoder import JSONDecodeError
     from requests import exceptions
-    
+
     try:
 
         theURL = "https://sdmdataaccess.nrcs.usda.gov"
         theURL = theURL + "/Tabular/SDMTabularService/post.rest"
-        
+
         rDic = {}
-        
-        
+
+
         rDic["format"] = "JSON+COLUMNNAME+METADATA"
-        
+
         rDic["query"] = q
         rData = json.dumps(rDic)
-        
-        results = requests.post(data=rData, url=theURL) 
-        
+
+        results = requests.post(data=rData, url=theURL)
+
         data = results.json()
-            
+
         # cols = qData.get('Table')[0]
         # data = qData.get('Table')[1:]
-            
+
         return True, data
-        
+
     except requests.exceptions.RequestException as e:
         return False, e
-        
+
     except JSONDecodeError as e:
-        
+
         msg = ('JSON Decode error: ' + e.msg)
         return False, msg
-    
+
     except Exception as e:
         arcpy.AddMessage('Unhandled error in sdaCall')
         return False, e
-        
+
 
 def tabRequest(aProp, areas=list()):
-    
+
 
     areasyms = ",".join(map("'{0}'".format, areas))
 
@@ -203,13 +203,13 @@ def tabRequest(aProp, areas=list()):
         INNER JOIN mapunit ON c.mukey=mapunit.mukey AND c1.mukey=mu.mukey ORDER BY c1.comppct_r DESC, c1.cokey)
         GROUP BY areasymbol, musym, muname, mu.mukey, c.cokey,  compname, comppct_r
         ORDER BY areasymbol, musym, muname, mu.mukey, comppct_r DESC, c.cokey"""
-        
+
     # arcpy.AddMessage(pQry)
     return pQry
-            
-            
+
+
 def rslvProps(aProp):
-   
+
     #propDict = {'Wind Erodibility Index': 'wei', 'Wind Erodibility Group' : 'weg', 'Drainage Class' : 'drainagecl', 'Hydrologic Group' : 'hydgrp', 'Corrosion of Steel' : 'corsteel', 'Corrosion of Steel' : 'corsteel', 'Taxonomic Class Name' : 'taxclname', 'Taxonomic Suborder' : 'taxsuborder', 'Taxonomic Order' : 'taxorder', 'Taxonomic Temperature Regime' : 'taxtempregime', 't Factor' : 'tfact', 'Cation Exchange Capcity - Rep Value': 'cec7_r', 'CaCO3 Clay - High': 'claysizedcarb_h', 'Coarse Silt - Low': 'siltco_l', 'Total Rock Fragment Volume - Rep Value': 'fragvoltot_r', 'Water Soluble Phosphate - Rep Value': 'ph2osoluble_r', 'Sum of Bases - High': 'sumbases_h', 'Available Water Capacity - Low': 'awc_l', 'Fine Sand - Low': 'sandfine_l', 'Extractable Acidity - High': 'extracid_h', 'CaCO3 Clay - Rep Value': 'claysizedcarb_r', 'pH Oxidized - Rep Value': 'phoxidized_r', 'Oxalate Aluminum - Low': 'aloxalate_l', 'Coarse Sand - Rep Value': 'sandco_r', 'no. 4 sieve - Low': 'sieveno4_l', 'Bulk Density 15 bar H2O - High': 'dbfifteenbar_h', 'Electrical Conductivity - Rep Value': 'ec_r', 'Calcium Carbonate - Low': 'caco3_l', 'Bulk Density 0.33 bar H2O - Low': 'dbthirdbar_l', 'Rock Fragments 3 - 10 cm- Rep Value': 'frag3to10_r', 'Bray 1 Phosphate - High': 'pbray1_h', 'pH Oxidized - Low': 'phoxidized_l', 'Exchangeable Sodium Percentage - Rep Value': 'esp_r', 'Sodium Adsorption Ratio - Rep Value': 'sar_r', 'no. 4 sieve - High': 'sieveno4_h', 'Medium Sand - Low': 'sandmed_l', 'Bulk Density 15 bar H2O - Rep Value': 'dbfifteenbar_r', 'Effective Cation Exchange Capcity - Rep Value': 'ecec_r', 'pH Oxidized - High': 'phoxidized_h', 'Rock Fragments 3 - 10 cm- High': 'frag3to10_h', 'Oxalate Iron - Low': 'feoxalate_l', 'Free Iron - High': 'freeiron_h', 'Total Rock Fragment Volume - High': 'fragvoltot_h', 'Fine Sand - High': 'sandfine_h', 'Total Sand - High': 'sandtotal_h', 'Liquid Limit - Low': 'll_l', 'Organic Matter - Rep Value': 'om_r', 'Coarse Sand - High': 'sandco_h', 'Very Fine Sand - Low': 'sandvf_l', 'Oxalate Iron - Rep Value': 'feoxalate_r', 'Very Coarse Sand - Low': 'sandvc_l', 'Total Silt - Rep Value': 'silttotal_r', 'Liquid Limit - High': 'll_h', 'Saturated Hydraulic Conductivity - High': 'ksat_h', 'no. 40 sieve - Rep Value': 'sieveno40_r', 'Extract Aluminum - High': 'extral_h', 'no. 40 sieve - High': 'sieveno40_h', 'Kr ': 'krfact', 'Coarse Sand - Low': 'sandco_l', 'Sum of Bases - Rep Value': 'sumbases_r', 'Organic Matter - High': 'om_h', 'no. 10 sieve - Rep Value': 'sieveno10_r', 'Total Silt - High': 'silttotal_h', 'Saturated Hydraulic Conductivity - Low': 'ksat_l', 'Calcium Carbonate - Rep Value': 'caco3_r', 'pH .01M CaCl2 - Rep Value': 'ph01mcacl2_r', 'Bulk Density 15 bar H2O - Low': 'dbfifteenbar_l', 'Sodium Adsorption Ratio - Low': 'sar_l', 'Gypsum - High': 'gypsum_h', 'Rubbed Fiber % - Rep Value': 'fiberrubbedpct_r', 'CaCO3 Clay - Low': 'claysizedcarb_l', 'Electrial Conductivity 1:5 by volume - Rep Value': 'ec15_r', 'Satiated H2O - Rep Value': 'wsatiated_r', 'Medium Sand - High': 'sandmed_h', 'Bulk Density oven dry - Rep Value': 'dbovendry_r', 'Plasticity Index - Low': 'pi_l', 'Extractable Acidity - Rep Value': 'extracid_r', 'Oxalate Aluminum - Rep Value': 'aloxalate_r', 'Medium Sand - Rep Value': 'sandmed_r', 'Total Rock Fragment Volume - Low': 'fragvoltot_l', 'pH 1:1 water - Low': 'ph1to1h2o_l', 'no. 10 sieve - Low': 'sieveno10_l', 'Very Coarse Sand - Rep Value': 'sandvc_r', 'Gypsum - Low': 'gypsum_l', 'Plasticity Index - High': 'pi_h', 'Total Phosphate - High': 'ptotal_h', 'Unrubbed Fiber % - Rep Value': 'fiberunrubbedpct_r', 'Bulk Density 0.1 bar H2O - High': 'dbtenthbar_h', 'Cation Exchange Capcity - Low': 'cec7_l', '0.33 bar H2O - Rep Value': 'wthirdbar_r', '0.1 bar H2O - Low': 'wtenthbar_l', 'Bulk Density 0.1 bar H2O - Rep Value': 'dbtenthbar_r', 'no. 40 sieve - Low': 'sieveno40_l', 'Extract Aluminum - Low': 'extral_l', 'Calcium Carbonate - High': 'caco3_h', 'Water Soluble Phosphate - Low': 'ph2osoluble_l', 'Gypsum - Rep Value': 'gypsum_r', '0.33 bar H2O - High': 'wthirdbar_h', 'Bray 1 Phosphate - Low': 'pbray1_l', 'Available Water Capacity - Rep Value': 'awc_r', 'Rubbed Fiber % - High': 'fiberrubbedpct_h', 'Coarse Silt - Rep Value': 'siltco_r', '0.1 bar H2O - High': 'wtenthbar_h', 'Plasticity Index - Rep Value': 'pi_r', 'Extract Aluminum - Rep Value': 'extral_r', 'Fine Sand - Rep Value': 'sandfine_r', 'Fine Silt - Low': 'siltfine_l', 'Bulk Density oven dry - High': 'dbovendry_h', 'Total Clay - High': 'claytotal_h', 'Fine Silt - High': 'siltfine_h', 'Exchangeable Sodium Percentage - High': 'esp_h', 'Total Clay - Low': 'claytotal_l', 'Bulk Density 0.33 bar H2O - High': 'dbthirdbar_h', 'Total Phosphate - Low': 'ptotal_l', 'Cation Exchange Capcity - High': 'cec7_h', '15 bar H2O - Low': 'wfifteenbar_l', 'no. 10 sieve - High': 'sieveno10_h', 'Extractable Acidity - Low': 'extracid_l', 'Electrical Conductivity - High': 'ec_h', 'Oxalate Phosphate - Low': 'poxalate_l', 'Electrial Conductivity 1:5 by volume - High': 'ec15_h', 'Sodium Adsorption Ratio - High': 'sar_h', 'Liquid Limit - Rep Value': 'll_r', '0.33 bar H2O - Low': 'wthirdbar_l', 'Satiated H2O - High': 'wsatiated_h', 'Bulk Density 0.33 bar H2O - Rep Value': 'dbthirdbar_r', '15 bar H2O - Rep Value': 'wfifteenbar_r', '15 bar H2O - High': 'wfifteenbar_h', 'no. 200 sieve - Low': 'sieveno200_l', 'LEP - Low': 'lep_l', 'Satiated H2O - Low': 'wsatiated_l', 'Total Clay - Rep Value': 'claytotal_r', 'Very Fine Sand - High': 'sandvf_h', 'Available Water Capacity - High': 'awc_h', 'Total Phosphate - Rep Value': 'ptotal_r', 'Electrical Conductivity - Low': 'ec_l', 'Oxalate Aluminum - High': 'aloxalate_h', 'Effective Cation Exchange Capcity - High': 'ecec_h', 'Rubbed Fiber % - Low': 'fiberrubbedpct_l', 'Coarse Silt - High': 'siltco_h', 'Bulk Density oven dry - Low': 'dbovendry_l', 'no. 4 sieve - Rep Value': 'sieveno4_r', 'Bray 1 Phosphate - Rep Value': 'pbray1_r', 'no. 200 sieve - High': 'sieveno200_h', '0.1 bar H2O - Rep Value': 'wtenthbar_r', 'Unrubbed Fiber % - Low': 'fiberunrubbedpct_l', 'pH .01M CaCl2 - Low': 'ph01mcacl2_l', 'Saturated Hydraulic Conductivity - Rep Value': 'ksat_r', 'Kw ': 'kwfact', 'Unrubbed Fiber % - High': 'fiberunrubbedpct_h', 'Rock Fragments > 10 cm - High': 'fraggt10_h', 'Kf': 'kffact', 'no. 200 sieve - Rep Value': 'sieveno200_r', 'pH .01M CaCl2 - High': 'ph01mcacl2_h', 'Oxalate Phosphate - Rep Value': 'poxalate_r', 'Rock Fragments 3 - 10 cm- Low': 'frag3to10_l', 'Water Soluble Phosphate - High': 'ph2osoluble_h', 'Very Fine Sand - Rep Value': 'sandvf_r', 'Electrial Conductivity 1:5 by volume - Low': 'ec15_l', 'Total Silt - Low': 'silttotal_l', 'Total Sand - Low': 'sandtotal_l', 'Organic Matter - Low': 'om_l', 'Fine Silt - Rep Value': 'siltfine_r', 'Very Coarse Sand - High': 'sandvc_h', 'Free Iron - Low': 'freeiron_l', 'Rock Fragments > 10 cm - Rep Value': 'fraggt10_r', 'LEP - High': 'lep_h', 'pH 1:1 water - High': 'ph1to1h2o_h', 'Oxalate Phosphate - High': 'poxalate_h', 'Total Sand - Rep Value': 'sandtotal_r', 'Oxalate Iron - High': 'feoxalate_h', 'Rock Fragments > 10 cm - Low': 'fraggt10_l', 'Sum of Bases - Low': 'sumbases_l', 'Free Iron - Rep Value': 'freeiron_r', 'LEP - Rep Value': 'lep_r', 'Effective Cation Exchange Capcity - Low': 'ecec_l', 'pH 1:1 water - Rep Value': 'ph1to1h2o_r', 'Exchangeable Sodium Percentage - Low': 'esp_l', 'Ki ': 'kifact', 'Bulk Density 0.1 bar H2O - Low': 'dbtenthbar_l'}
     propDict = {'0.1 bar H2O - Rep Value' : 'wtenthbar_r', '0.33 bar H2O - Rep Value' : 'wthirdbar_r', '15 bar H2O - Rep Value' : 'wfifteenbar_r', 'Available Water Capacity - Rep Value' : 'awc_r', 'Bray 1 Phosphate - Rep Value' : 'pbray1_r', 'Bulk Density 0.1 bar H2O - Rep Value' : 'dbtenthbar_r', 'Bulk Density 0.33 bar H2O - Rep Value' : 'dbthirdbar_r', 'Bulk Density 15 bar H2O - Rep Value' : 'dbfifteenbar_r', 'Bulk Density oven dry - Rep Value' : 'dbovendry_r', 'CaCO3 Clay - Rep Value' : 'claysizedcarb_r', 'Calcium Carbonate - Rep Value' : 'caco3_r', 'Cation Exchange Capcity - Rep Value' : 'cec7_r', 'Coarse Sand - Rep Value' : 'sandco_r', 'Coarse Silt - Rep Value' : 'siltco_r', 'Corrosion of Steel' : 'corsteel', 'Corrosion of Concrete' : 'corcon', 'Drainage Class' : 'drainagecl', 'Effective Cation Exchange Capcity - Rep Value' : 'ecec_r', 'Electrial Conductivity 1:5 by volume - Rep Value' : 'ec15_r', 'Electrical Conductivity - Rep Value' : 'ec_r', 'Exchangeable Sodium Percentage - Rep Value' : 'esp_r', 'Extract Aluminum - Rep Value' : 'extral_r', 'Extractable Acidity - Rep Value' : 'extracid_r', 'Fine Sand - Rep Value' : 'sandfine_r', 'Fine Silt - Rep Value' : 'siltfine_r', 'Free Iron - Rep Value' : 'freeiron_r', 'Gypsum - Rep Value' : 'gypsum_r', 'Hydrologic Group' : 'hydgrp', 'Kf' : 'kffact', 'Ki ' : 'kifact', 'Kr ' : 'krfact', 'Kw ' : 'kwfact', 'LEP - Rep Value' : 'lep_r', 'Liquid Limit - Rep Value' : 'll_r', 'Medium Sand - Rep Value' : 'sandmed_r', 'Organic Matter - Rep Value' : 'om_r', 'Oxalate Aluminum - Rep Value' : 'aloxalate_r', 'Oxalate Iron - Rep Value' : 'feoxalate_r', 'Oxalate Phosphate - Rep Value' : 'poxalate_r', 'Plasticity Index - Rep Value' : 'pi_r', 'Rock Fragments 3 - 10 cm - Rep Value' : 'frag3to10_r', 'Rock Fragments > 10 cm - Rep Value' : 'fraggt10_r', 'Rubbed Fiber % - Rep Value' : 'fiberrubbedpct_r', 'Satiated H2O - Rep Value' : 'wsatiated_r', 'Saturated Hydraulic Conductivity - Rep Value' : 'ksat_r', 'Sodium Adsorption Ratio - Rep Value' : 'sar_r', 'Sum of Bases - Rep Value' : 'sumbases_r', 'Taxonomic Class Name' : 'taxclname', 'Taxonomic Order' : 'taxorder', 'Taxonomic Suborder' : 'taxsuborder', 'Taxonomic Temperature Regime' : 'taxtempregime', 'Total Clay - Rep Value' : 'claytotal_r', 'Total Phosphate - Rep Value' : 'ptotal_r', 'Total Rock Fragment Volume - Rep Value' : 'fragvoltot_r', 'Total Sand - Rep Value' : 'sandtotal_r', 'Total Silt - Rep Value' : 'silttotal_r', 'Unrubbed Fiber % - Rep Value' : 'fiberunrubbedpct_r', 'Very Coarse Sand - Rep Value' : 'sandvc_r', 'Very Fine Sand - Rep Value' : 'sandvf_r', 'Water Soluble Phosphate - Rep Value' : 'ph2osoluble_r', 'Wind Erodibility Group' : 'weg', 'Wind Erodibility Index' : 'wei', 'no. 10 sieve - Rep Value' : 'sieveno10_r', 'no. 200 sieve - Rep Value' : 'sieveno200_r', 'no. 4 sieve - Rep Value' : 'sieveno4_r', 'no. 40 sieve - Rep Value' : 'sieveno40_r', 'pH .01M CaCl2 - Rep Value' : 'ph01mcacl2_r', 'pH 1:1 water - Rep Value' : 'ph1to1h2o_r', 'pH Oxidized - Rep Value' : 'phoxidized_r', 't Factor' : 'tfact'}
     propVal = propDict.get(aProp)
@@ -255,7 +255,7 @@ def CreateNewTable(newTable, columnNames, columnInfo):
 
         outputTbl = os.path.join(r"memory", newTable)
         # arcpy.AddMessage(outputTbl)
-        
+
         try:
             arcpy.management.CreateTable(os.path.dirname(outputTbl), os.path.basename(outputTbl))
         except:
@@ -278,77 +278,77 @@ def CreateNewTable(newTable, columnNames, columnInfo):
         # desc = arcpy.Describe(outputTbl).fields
         # names = [x.name for x in desc]
         # arcpy.AddMessage(names)
-        
+
         return True, outputTbl
-    
+
     except:
         msg = 'Did not create table for ' + prop
         return False, msg
-    
-    
+
+
 def updateTable(xst, run):
-    
-    # we will always need the last field(property) 
+
+    # we will always need the last field(property)
     field = arcpy.Describe(run).fields[-1:]
-    fname = field[0].name 
+    fname = field[0].name
     ftype = field[0].type
     flen = field[0].length
 
-    # build a dictionary of the mukeys and property value  
+    # build a dictionary of the mukeys and property value
     pDict = dict()
     with arcpy.da.SearchCursor(run, ["mukey", fname]) as rows:
         for row in rows:
             pDict[str(row[0])] = row[1]
-    
+
     # arcpy.AddMessage(pDict)
-    
+
     # take a small sample of the run mukeys
     run_keys = list(pDict.keys())
     run_keys = run_keys[:5]
-    
+
     #  get the xst mukeys
     with arcpy.da.SearchCursor(xst, 'mukey') as rows:
         xst_keys = sorted({row[0] for row in rows})
-    
+
     # test if the run mukeys are in the xst
     test = all(item in xst_keys for item in run_keys)
-    
+
     # if the run keys are in the xst
     # the state has been run
     if test:
-        
+
         # arcpy.AddMessage('All keys present' + prop + " " + state)
         # arcpy.AddMessage('Update cursor ' + prop + ' in ' +  state + ' on ' + xst + ' with ' + run)
         # wc = "mukey IN (" + ",".join(map("'{0}'".format, run_keys)) + ")"
-        
+
         flds = [f.name for f in arcpy.Describe(xst).fields]
         if not fname in flds:
-            arcpy.management.AddField(xst, fname, ftype, None, None, flen)       
-        
+            arcpy.management.AddField(xst, fname, ftype, None, None, flen)
+
         with arcpy.da.UpdateCursor(xst, ["mukey", fname]) as rows:
             for row in rows:
                 val = pDict.get(row[0])
                 if val is not None:
                     row[1] = val
                     rows.updateRow(row)
-        
+
     else:
-        # if run keys are not in xst then a new state 
+        # if run keys are not in xst then a new state
         # has been run, and the property already field exists
-        
+
         # house_flds = ['areasymbol', 'musym', 'muname', 'mukey']
         prop_flds = [f.name for f in arcpy.Describe(run).fields][1:]
-        
+
         with arcpy.da.SearchCursor(run, prop_flds) as rows:
             for row in rows:
-                iCur = arcpy.da.InsertCursor(xst, prop_flds) 
+                iCur = arcpy.da.InsertCursor(xst, prop_flds)
                 iCur.insertRow(row)
-        
+
         # or you could run append
         # arcpy.management.Append(run, xst, "TEST")
-                        
-    
-   
+
+
+
 # ========================= Prepare parameters =========================
 
 import sys, os, arcpy, string, random, traceback
@@ -378,8 +378,8 @@ try:
     arcpy.AddMessage(u"\u200B")
     arcpy.AddMessage('Collecting SSURGO Tabular Data...')
     arcpy.AddMessage(u"\u200B")
-    
-            
+
+
     # this dictionary is used for naming tables appropriately
     aggAbbr = dict()
     aggAbbr['Dominant Condition'] = 'dom_cond'
@@ -387,118 +387,115 @@ try:
     aggAbbr['Dominant Component (Numeric)'] = 'dom_comp_num'
     aggAbbr['Weighted Average'] = 'wtavg'
     aggAbbr['Min\Max'] = mmC
-    
-   
+
+
     states = list(set([x[:2] for x in area_in]))
     states.sort()
-    
+
     jobs = (len(props)) * len(states)
     n = 0
     arcpy.SetProgressor("default", "SSURGO On-Demand: Jobs(" + str(n) + " of " + str(jobs) + ")")
-    
+
     for prop in props:
-        
+
         arcpy.AddMessage('Running property: ' + prop )
-        
-        n += 1
-        arcpy.SetProgressorLabel("SSURGO On-Demand: Jobs (" + str(n) + " of " + str(jobs) + ")")
-        
-        sdaCol = rslvProps(prop)        
+
+        sdaCol = rslvProps(prop)
         if addToSingle is False:
             tblinfo = (aggAbbr.get(aggMethod), sdaCol, tDep, bDep)
-        
+
         else:
             tblinfo = (aggAbbr.get(aggMethod), 'multi_props', tDep, bDep)
-            
-    
+
+
         newName = "sod_" +  "_".join(map("{0}".format, tblinfo))
         newName = newName.replace("__", "_")
         if newName.endswith("_"):
             newName = newName[:-1]
-        
+
         sod_tab = os.path.join(dest, newName)
 
         for state in states:
             n += 1
             arcpy.SetProgressorLabel("SSURGO On-Demand: Jobs (" + str(n) + " of " + str(jobs) + ")")
-            
+
             req_areas = [x for x in area_in if x[:2] == state]
-            
+
             arcpy.AddMessage('Running State: ' + state)
-            
+
             theQ = tabRequest(sdaCol, req_areas)
             # arcpy.AddMessage(theQ)
-            
+
             tabBool, tabData = sdaCall(theQ)
-            
+
             # successfully received the property for the state
             if tabBool:
-              
+
                 if len(tabData) == 0:
                     fail.append(prop)
                     arcpy.AddMessage('No property information returned for ') + prop
-                
+
                 else:
                     tabCols = tabData.get('Table')[0]
                     tabMeta = tabData.get('Table')[1]
-                    tabData = tabData.get('Table')[2:]        
-                
+                    tabData = tabData.get('Table')[2:]
+
                     if not arcpy.Exists(sod_tab):
                        bldBool, bldTbl = CreateNewTable("temp_table", tabCols, tabMeta)
-                       
+
                        if bldBool:
-                       
+
                            with arcpy.da.InsertCursor(bldTbl, tabCols) as cursor:
                                for row in tabData:
                                    cursor.insertRow(row)
-                                   
+
                            arcpy.conversion.TableToTable(bldTbl, dest, newName)
                            arcpy.management.Delete(bldTbl)
-                       
+
                        else:
-                           arcpy.AddMessage(bldTbl)                            
-                    
+                           arcpy.AddMessage(bldTbl)
+
                     else:
                         # random ID is assigned to each state for each property
-                        rid = ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(10))
-                       
-                        runTbl = os.path.join(dest, newName + "_" + rid)
+                        # rid = ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(10))
+
+                        # runTbl = os.path.join(dest, newName + "_" + rid)
                         bldBool, bldTbl = CreateNewTable("temp_table", tabCols, tabMeta)
-                        
+
                         if bldBool:
-                        
+
                             with arcpy.da.InsertCursor(bldTbl, tabCols) as cursor:
                                 for row in tabData:
                                     cursor.insertRow(row)
-                                    
-                            arcpy.conversion.TableToTable(bldTbl, dest, newName + "_" + rid)
-                            arcpy.management.Delete(bldTbl)       
-                            
+
+                            # arcpy.conversion.TableToTable(bldTbl, dest, newName + "_" + rid)
+                            # arcpy.management.Delete(bldTbl)
+
                             # def updateTable(xst, run):
-                            updateTable(sod_tab, runTbl)
-                            
+                            updateTable(sod_tab, bldTbl)
+
                             # delete the table for each property for each state
-                            if arcpy.Exists(os.path.join(dest, newName + "_" + rid)):
-                                arcpy.management.Delete(os.path.join(dest, newName + "_" + rid))
-                                        
-                            del rid
-                        
-            
+                            # if arcpy.Exists(os.path.join(dest, newName + "_" + rid)):
+                            #     arcpy.management.Delete(os.path.join(dest, newName + "_" + rid))
+
+                            # del rid
+                            arcpy.management.Delete(bldTbl)
+
             # did note receive the property for state
             else:
-                arcpy.AddMessage(tabData) 
+                arcpy.AddMessage(tabData)
                 fail.append(state + ':' +prop)
                 arcpy.AddMessage('Error while collecting information returned for ' + prop  + ' for ' + state)
-            
-       
+
+
     if len(fail) > 0:
-        
+
         fstr = ','.join(map("{0}".format, fail))
         arcpy.AddError('The following property(s) failed to execute or returned no results:')
         arcpy.AddError(fstr)
         arcpy.AddMessage(u"\u200B")
-        
-except arcpy.ExecuteError: 
+
+except arcpy.ExecuteError:
     arcpy.AddMessage(arcpy.GetMessages())
 
 except:
@@ -508,17 +505,17 @@ except:
     theMsg =  tbinfo + "\n" + str(sys.exc_info()[1])
 
     arcpy.AddError(theMsg)
-        
-        
-        
-        
-        
-        
-        
-    
-    
-    
-    
 
-    
-    
+
+
+
+
+
+
+
+
+
+
+
+
+
