@@ -364,12 +364,13 @@ bDep = arcpy.GetParameterAsText(5)
 mmC = arcpy.GetParameterAsText(6)
 dest = arcpy.GetParameterAsText(7)
 addToSingle = arcpy.GetParameter(8)
+#retain = arcpy.GetParameter(9)
 # bLyrs = arcpy.GetParameterAsText(7)
 # bSingle = arcpy.GetParameterAsText(8)
 
 arcpy.env.workspace = dest
 
-arcpy.AddMessage(addToSingle)
+# arcpy.AddMessage(addToSingle)
 
 fail = list()
 
@@ -407,8 +408,7 @@ try:
         else:
             tblinfo = (aggAbbr.get(aggMethod), 'multi_props', tDep, bDep)
 
-
-        newName = "sod_" +  "_".join(map("{0}".format, tblinfo))
+        newName = "SSURGOOnDemand_" +  "_".join(map("{0}".format, tblinfo))
         newName = newName.replace("__", "_")
         if newName.endswith("_"):
             newName = newName[:-1]
@@ -441,6 +441,7 @@ try:
                     tabData = tabData.get('Table')[2:]
 
                     if not arcpy.Exists(sod_tab):
+
                        bldBool, bldTbl = CreateNewTable("temp_table", tabCols, tabMeta)
 
                        if bldBool:
@@ -456,10 +457,6 @@ try:
                            arcpy.AddMessage(bldTbl)
 
                     else:
-                        # random ID is assigned to each state for each property
-                        # rid = ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(10))
-
-                        # runTbl = os.path.join(dest, newName + "_" + rid)
                         bldBool, bldTbl = CreateNewTable("temp_table", tabCols, tabMeta)
 
                         if bldBool:
@@ -468,17 +465,9 @@ try:
                                 for row in tabData:
                                     cursor.insertRow(row)
 
-                            # arcpy.conversion.TableToTable(bldTbl, dest, newName + "_" + rid)
-                            # arcpy.management.Delete(bldTbl)
-
                             # def updateTable(xst, run):
                             updateTable(sod_tab, bldTbl)
 
-                            # delete the table for each property for each state
-                            # if arcpy.Exists(os.path.join(dest, newName + "_" + rid)):
-                            #     arcpy.management.Delete(os.path.join(dest, newName + "_" + rid))
-
-                            # del rid
                             arcpy.management.Delete(bldTbl)
 
             # did note receive the property for state

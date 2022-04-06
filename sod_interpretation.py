@@ -6,43 +6,43 @@ Created on Tue Nov 23 10:53:09 2021
 """
 
 def sdaCall(q, var=str):
-    
+
     import requests, json
     from json.decoder import JSONDecodeError
-    
+
     try:
 
         theURL = "https://sdmdataaccess.nrcs.usda.gov"
         theURL = theURL + "/Tabular/SDMTabularService/post.rest"
-        
+
         rDic = {}
-        
-        
+
+
         rDic["format"] = "JSON+COLUMNNAME+METADATA"
-        
+
         rDic["query"] = q
         rData = json.dumps(rDic)
-        
-        results = requests.post(data=rData, url=theURL) 
-        
+
+        results = requests.post(data=rData, url=theURL)
+
         data = results.json()
-            
+
         # cols = qData.get('Table')[0]
         # data = qData.get('Table')[1:]
-            
+
         return True, data, var
-        
+
     except JSONDecodeError as e:
         msg = 'JSON Decode error: ' + e.msg
         return False, msg, var
-        
+
     except requests.exceptions.RequestException as e:
         msg = e
         return False, msg, var
     except Exception as e:
         msg = 'Unhadled error in sdaCall ' + e
         return False, msg, var
-                
+
 
 def tabRequest(interp, keys):
 
@@ -114,17 +114,17 @@ def tabRequest(interp, keys):
         FROM mapunit
         INNER JOIN component ON component.mukey=mapunit.mukey AND compkind != 'miscellaneous area'
         INNER JOIN cointerp ON component.cokey = cointerp.cokey AND mapunit.mukey = mu.mukey
-    
+
         AND ruledepth != 0 AND interphrc NOT LIKE 'Not%' AND mrulename LIKE '""" + interp + """' GROUP BY interphrc
         ORDER BY interphrc
         FOR XML PATH('') ), 3, 1000) )as reason
-    
+
         INTO #main
         FROM legend  AS l
         INNER JOIN  mapunit AS mu ON mu.lkey = l.lkey AND mu.mukey IN (""" + keys + """)
         INNER JOIN  component AS c ON c.mukey = mu.mukey
         GROUP BY  areasymbol, musym, muname, mu.mukey
-    
+
         SELECT areasymbol, musym, muname, MUKEY, ISNULL (ROUND ((rating/sum_com),2), 99) AS rating,
         CASE WHEN rating IS NULL THEN 'Not Rated'
         WHEN design = 'suitability' AND  ROUND ((rating/sum_com),2) < = 0 THEN 'Not suited'
@@ -132,7 +132,7 @@ def tabRequest(interp, keys):
         WHEN design = 'suitability' AND  ROUND ((rating/sum_com),2)  > 0.334 and  ROUND ((rating/sum_com),2)  <=0.666  THEN 'Moderately suited'
         WHEN design = 'suitability' AND  ROUND ((rating/sum_com),2)  > 0.667 and  ROUND ((rating/sum_com),2)  <=0.999  THEN 'Moderately well suited'
         WHEN design = 'suitability' AND  ROUND ((rating/sum_com),2)   = 1  THEN 'Well suited'
-    
+
         WHEN design = 'limitation' AND  ROUND ((rating/sum_com),2) < = 0 THEN 'Not limited '
         WHEN design = 'limitation' AND  ROUND ((rating/sum_com),2)  > 0.001 and  ROUND ((rating/sum_com),2)  <=0.333 THEN 'Slightly limited '
         WHEN design = 'limitation' AND  ROUND ((rating/sum_com),2)  > 0.334 and  ROUND ((rating/sum_com),2)  <=0.666  THEN 'Somewhat limited '
@@ -179,7 +179,7 @@ def CreateNewTable(newTable, columnNames, columnInfo):
 
         outputTbl = os.path.join(r"memory", newTable)
         # arcpy.AddMessage(outputTbl)
-        
+
         try:
             arcpy.management.CreateTable(os.path.dirname(outputTbl), os.path.basename(outputTbl))
         except:
@@ -202,67 +202,70 @@ def CreateNewTable(newTable, columnNames, columnInfo):
         # desc = arcpy.Describe(outputTbl).fields
         # names = [x.name for x in desc]
         # arcpy.AddMessage(names)
-        
+
         return True, outputTbl
-    
+
     except:
         msg = 'Did not create table for ' + interp
         return False, msg
-    
-    
+
+
 def updateTable(spatial, tabular):
 
-    # add the standard fields if they aren't in the spatial table 
+    # add the standard fields if they aren't in the spatial table
     housefields = ['areasymbol', 'musym', 'muname']
     havefields = [str(x.name) for x in arcpy.Describe(spatial).fields]
     needfields = [f for f in housefields if not f in havefields]
-    
+
     fobjs = [f for f in arcpy.Describe(tabular).fields if str(f.name) in needfields]
     if len(fobjs) > 0:
         for f in fobjs:
-            fname = f.name 
+            fname = f.name
             ftype = f.type
             flen = f.length
-        
+
             arcpy.management.AddField(spatial, fname, ftype, None, None, flen)
-        
+
             # build the dict from tabular to populate the spatial
             hDict = dict()
             with arcpy.da.SearchCursor(tabular, ["mukey", fname]) as rows:
                 for row in rows:
                     hDict[str(row[0])] = row[1]
-            
-            # now iterate over the spatial using the dict 
+
+            # now iterate over the spatial using the dict
             with arcpy.da.UpdateCursor(spatial, ["mukey", fname]) as rows:
                 for row in rows:
                     val = hDict.get(row[0])
                     row[1] = val
                     rows.updateRow(row)
-        
-    
-    # we will always need the last 3 fields(rating, class, reason) 
+
+
+    # we will always need the last 3 fields(rating, class, reason)
     fields = arcpy.Describe(tabular).fields[-3:]
     for f in fields:
         fname = f.name
         falias = fname + "_" + alias
         ftype = f.type
         flen = f.length
-    
+
         arcpy.management.AddField(spatial, falias, ftype, None, None, flen)
-    
+
         pDict = dict()
         with arcpy.da.SearchCursor(tabular, ["mukey", fname]) as rows:
             for row in rows:
                 pDict[str(row[0])] = row[1]
-    
+
         with arcpy.da.UpdateCursor(spatial, ["mukey", falias]) as rows:
             for row in rows:
                 val = pDict.get(row[0])
                 row[1] = val
                 rows.updateRow(row)
-            
-    
-   
+
+    if retain == True:
+        pass
+    else:
+        arcpy.management.Delete(tabular)
+
 # ========================= Prepare parameters =========================
 
 import sys, os, arcpy, string, random, traceback
@@ -280,6 +283,7 @@ arcpy.AddMessage(aggMethod)
 interpParam = arcpy.GetParameter(2)
 dest = arcpy.GetParameterAsText(3)
 addToGeom = arcpy.GetParameterAsText(4)
+retain = arcpy.GetParameter(5)
 
 arcpy.env.workspace = dest
 
@@ -287,6 +291,14 @@ fail = list()
 
 jobs = 1 + (len(interpParam))
 n = 1
+
+# this dictionary is used for naming tables appropriately
+aggAbbr = dict()
+aggAbbr['Dominant Condition'] = 'dom_cond'
+aggAbbr['Dominant Component'] = 'dom_comp'
+aggAbbr['Weighted Average'] = 'wtavg'
+
+
 arcpy.SetProgressor("default", "SSURGO On-Demand: Jobs(" + str(n) + " of " + str(jobs) + ")")
 
 # ========================= Get the SSURGO Geometry =========================
@@ -294,73 +306,73 @@ try:
     arcpy.AddMessage(u"\u200B")
     arcpy.AddMessage('Collecting SSURGO geometry...')
     arcpy.AddMessage(u"\u200B")
-    
+
     desc = arcpy.Describe(clu_in)
     sel = desc.FIDSet
     if sel  == '':
         err = "Select at least 1 feature"
         # arcpy.AddMessage(err)
         raise RuntimeError(err)
-    
-    
+
+
     # get coordinate system
     sr = desc.spatialReference
-    
+
     pcsCode = sr.PCSCode
-    
+
     # projected coordinate systems need to be reprojected bc we need lat/long
     if pcsCode != 0:
         code = sr.GCS.GCSCode
-    
+
         if code == 4326:
             arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
             arcpy.management.Project(os.path.join(dest, "clu_sel_" + rid), os.path.join(dest, "clu_prj_" + rid), arcpy.SpatialReference(4326))
             hull_target = os.path.join(dest, "clu_prj_" + rid)
-    
-        # NAD83 and NAD83(2011), needs transformation 
+
+        # NAD83 and NAD83(2011), needs transformation
         elif code == 4269:
             arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
             trm = "WGS_1984_(ITRF00)_To_NAD_1983"
             arcpy.management.Project(os.path.join(dest, "clu_sel_" + rid), os.path.join(dest, "clu_prj_" + rid), arcpy.SpatialReference(4326), trm)
             hull_target =  os.path.join(dest, "clu_prj_" + rid)
-            
+
         elif code == 6318:
             arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
             trm = "WGS_1984_(ITRF08)_To_NAD_1983_2011"
             arcpy.management.Project(os.path.join(dest, "clu_sel_" + rid), os.path.join(dest, "clu_prj_" + rid), arcpy.SpatialReference(4326), trm)
             hull_target =  os.path.join(dest, "clu_prj_" + rid)
-        
+
         else:
             err = 'This tool only supports spatial reference objects based on WGS84, NAD83, NAD83(2011)'
             raise TypeError(err)
-    
+
     else:
         code = sr.GCS.GCSCode
-        
+
         # no transformation needed
         if code == 4326:
             arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
             # arcpy.management.Project(os.path.join(dest, "clu_sel_" + rid), os.path.join(dest, "clu_prj_" + rid), arcpy.SpatialReference(4326))
             hull_target = os.path.join(dest, "clu_sel_" + rid)
-    
-        # NAD83 and NAD83(2011), needs transformation 
+
+        # NAD83 and NAD83(2011), needs transformation
         elif code == 4269:
             arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
             trm = "WGS_1984_(ITRF00)_To_NAD_1983"
             arcpy.management.Project(os.path.join(dest, "clu_sel_" + rid), os.path.join(dest, "clu_prj_" + rid), arcpy.SpatialReference(4326), trm)
             hull_target =  os.path.join(dest, "clu_prj_" + rid)
-            
+
         elif code == 6318:
             arcpy.management.CopyFeatures(clu_in, os.path.join(dest, "clu_sel_" + rid))
             trm = "WGS_1984_(ITRF08)_To_NAD_1983_2011"
             arcpy.management.Project(os.path.join(dest, "clu_sel_" + rid), os.path.join(dest, "clu_prj_" + rid), arcpy.SpatialReference(4326), trm)
             hull_target =  os.path.join(dest, "clu_prj_" + rid)
-        
+
         else:
             err = 'This tool only supports spatial reference objects based on WGS84, NAD83, NAD83(2011)'
             raise TypeError(err)
-        
-    
+
+
     # dissolve feature(s) into 1 part
     # get the smallest feature possible and its wkt
     arcpy.management.Dissolve(hull_target, os.path.join(dest, "sod_sngl_prt_" + rid))
@@ -368,187 +380,182 @@ try:
         for row in rows:
             hull = row[0].convexHull()
             wkt = hull.WKT
-            
+
             if not wkt.startswith("MULTIPOLYGON ("):
                 for f in arcpy.ListFeatureClasses("*_" + rid):
                     arcpy.management.Delete(f)
                 msg = 'The input AOI appears to have extended attributes (Z,M).  This is not supported.'
                 raise TypeError(msg)
             # arcpy.AddMessage(wkt)
-    
+
     geoQ = """~DeclareGeometry(@aoi)~
     select @aoi = geometry::STGeomFromText(
       '""" + wkt + """', 4326)
-    
+
     ~DeclareIdGeomTable(@intersectedPolygonGeometries)~
     ~GetClippedMapunits(@aoi,polygon,geo,@intersectedPolygonGeometries)~
-    
+
     select id, geom
     from @intersectedPolygonGeometries"""
-    
+
     # arcpy.AddMessage(geoQ)
-    
+
     geoBool, geoResults, gtype = sdaCall(geoQ, var='geo')
-    
+
     # the geometry query returned something
     if geoBool:
-        
+
         # if it's empty, bail, but clean-up first
         if len(geoResults) == 0:
-            
+
             for f in arcpy.ListFeatureClasses("*_" + rid):
                 arcpy.management.Delete(f)
-                
+
             err = 'Received no SDA geometry to process. Exiting'
             raise ValueError(err)
-            
-        
+
+
         geoCols = geoResults.get('Table')[0]
         geoMeta = geoResults.get('Table')[1]
         geoData = geoResults.get('Table')[2:]
-        
+
         # arcpy.AddMessage(geoData)
-        
+
         arcpy.management.CreateFeatureclass(dest, "sod_temp_" + rid, "POLYGON", None, None, None, arcpy.SpatialReference(4326))
         arcpy.management.AddField(os.path.join(dest, "sod_temp_" + rid), "mukey", "TEXT", None, None, "30")
-        
+
         with arcpy.da.InsertCursor(os.path.join(dest, "sod_temp_" + rid), ["SHAPE@WKT", "mukey"]) as cursor:
             for data in geoData:
                 mukey = data[0]
                 geom = data[1]
-                    
+
                 row = geom, mukey
                 cursor.insertRow(row)
-            
-        arcpy.analysis.Clip(os.path.join(dest, "sod_temp_" + rid), os.path.join(dest, "sod_sngl_prt_" + rid),  os.path.join(dest, "SSURGO_On_Demand_interpretation"))
-        
+
+        arcpy.analysis.Clip(os.path.join(dest, "sod_temp_" + rid), os.path.join(dest, "sod_sngl_prt_" + rid),  os.path.join(dest, "SSURGOOnDemand_interpretation_" + aggAbbr.get(aggMethod)))
+
         # clean up temporary files
         for f in arcpy.ListFeatureClasses("*_" + rid):
             arcpy.management.Delete(f)
-            
-        
+
+
         # ========================= Get the mukeys of the returned geometry =========================
-        
-        with arcpy.da.SearchCursor(os.path.join(dest, "SSURGO_On_Demand_interpretation"), "mukey") as rows:
+
+        with arcpy.da.SearchCursor(os.path.join(dest,  "SSURGOOnDemand_interpretation_" + aggAbbr.get(aggMethod)), "mukey") as rows:
             geoKeys = sorted({row[0] for row in rows})
-            
+
         keys = ",".join(map("'{0}'".format, geoKeys))
-        
-        # ========================= Get the mukeys of the returned geometry =========================
-        
-        # this dictionary is used for naming tables appropriately
-        aggAbbr = dict()
-        aggAbbr['Dominant Condition'] = 'dom_cond'
-        aggAbbr['Dominant Component'] = 'dom_comp'
-        aggAbbr['Weighted Average'] = 'wtavg'
-        
-        
-        
+
+        # ========================= Get interps =========================
+
         for interp in interpParam:
-            
+
             arcpy.AddMessage('Running interpretation: ' + interp)
             n += 1
             arcpy.SetProgressorLabel("SSURGO On-Demand: Jobs (" + str(n) + " of " + str(jobs) + ")")
-            
+
             # this is a leftover, prob don't need to rename interp in validation
             # with need to replace here
             if interp.find("{:}") != -1:
                 interp = interp.replace("{:}", ";")
-            
+
             # column names restricted in length, make small as possible
             aliasA = interp.replace(" ", "")
             aliasB = arcpy.ValidateFieldName(aliasA,dest)
-            aliasC = aliasB.replace("_", "") 
-            
+            aliasC = aliasB.replace("_", "")
+
             alias = aliasC
-            
+
             theQ = tabRequest(interp, keys)
             # arcpy.AddMessage(theQ)
-            
+
             tabBool, tabData, qtype = sdaCall(theQ, var='tab')
-            
+
             # the tabular request returned something
             if tabBool:
-                
+
                 if len(tabData) == 0:
                     fail.append(interp)
                     arcpy.AddMessage('No interpretation information returned for ') + interp
-                
+
                 else:
                     tabCols = tabData.get('Table')[0]
                     tabMeta = tabData.get('Table')[1]
-                    tabData = tabData.get('Table')[2:]        
-                        
+                    tabData = tabData.get('Table')[2:]
+
                     # tblinfo = (aggAbbr.get(aggMethod), sdaCol, tDep, bDep)
                     tblNameAlias = arcpy.ValidateTableName(interp, dest)
                     tblinfo = (aggAbbr.get(aggMethod), tblNameAlias)
-                
-                    newName = "sod_" +  "_".join(map("{0}".format, tblinfo))
+
+                    newName = "SSURGOOnDemand_" +  "_".join(map("{0}".format, tblinfo))
                     newName = newName.replace("___", "_")
                     newName = newName.replace("__", "_")
-                    
+
                     if newName.endswith("_"):
                         newName = newName[:-1]
-                    
+
                     # arcpy.AddMessage(newName)
-                    
+
                     tbool, tval = CreateNewTable("temp_table", tabCols, tabMeta)
-                    
+
                     if tbool:
-                    
+
                         with arcpy.da.InsertCursor(tval, tabCols) as cursor:
                             for row in tabData:
                                 cursor.insertRow(row)
-                                
+
                         arcpy.conversion.TableToTable(tval, dest, newName)
                         arcpy.management.Delete(tval)
-                    
+
                     else:
                         arcpy.AddMessage(tval)
-                        
-                    
+
+
                     if addToGeom == 'true':
-                        
-                        sod_geom = os.path.join(dest, "SSURGO_On_Demand_interpretation")
+
+                        sod_geom = os.path.join(dest,  "SSURGOOnDemand_interpretation_" + aggAbbr.get(aggMethod))
                         sod_tab = os.path.join(dest, newName)
-                        
+
                         updateTable(sod_geom, sod_tab)
-                        
+
                     # add line to separate messages
                     arcpy.AddMessage(u"\u200B")
-                
+
             # the tabular call failed, SDA down??? Proceed to the interp
             else:
                 fail.append(interp)
                 arcpy.AddMessage('Error while collecting information returned for ' + interp)
                 arcpy.AddMessage(tabData)
-                
+
     # the geo request failed, SDA down??? Bail, no geometry or mukeys, but clean up
     else:
         if gtype == 'geo':
-            
+
             # display the return messgae
             arcpy.AddError(geoResults)
-            
+
             # clean up temporary files
             for f in arcpy.ListFeatureClasses("*_" + rid):
                 arcpy.management.Delete(f)
-            
+
             # bail out
             err = 'Unable to collect SDA geometry to process. Exiting'
             raise ValueError(err)
-        
-        
-        
+
+
+
     if len(fail) > 0:
-        
+
         fstr = ','.join(map("{0}".format, fail))
         arcpy.AddError('The following interpretation(s) failed to execute or returned no results:')
         arcpy.AddError(fstr)
         arcpy.AddMessage(u"\u200B")
-        
-except arcpy.ExecuteError: 
-    arcpy.AddMessage(arcpy.GetMessages())
+
+except arcpy.ExecuteError:
+    arcpy.AddError(arcpy.GetMessages())
+
+    for f in arcpy.ListFeatureClasses("*_" + rid):
+            arcpy.management.Delete(f)
 
 except:
     # Get the traceback object
@@ -556,41 +563,41 @@ except:
     tbinfo = traceback.format_tb(tb)[0]
     theMsg =  tbinfo + "\n" + str(sys.exc_info()[1])
 
-    arcpy.AddError(theMsg)        
-        
+    arcpy.AddError(theMsg)
+
     # arcpy.AddMessage(tabCols)
     # arcpy.AddMessage(tabMeta)
-    
+
     # if bSingle == 'true':
     #     tblinfo = (aggAbbr.get(aggMethod), 'multi_prop', tDep, bDep)
     #     newName = "sod_" +  "_".join(map("{0}".format, tblinfo))
     #     newName = newName.replace("__", "_")
     #     if newName.endswith("_"):
     #         newName = newName[:-1]
-        
+
     #     # create memory table
     #     tbool, tval = CreateNewTable("temp_table", tabCols, tabMeta)
-        
+
     #     if tbool:
-        
+
     #         with arcpy.da.InsertCursor(tval, tabCols) as cursor:
     #             for row in tabData:
     #                 cursor.insertRow(row)
-                    
+
     #         #  test if the multi_prop table exists
     #         if not arcpy.Exists(os.path.join(dest, newName)):
     #             arcpy.conversion.TableToTable(tval, dest, newName)
-            
+
     #         # if it exists create dictionar
     #         else:
     #             desc = arcpy.Describe(os.path.join(dest, newName))
     #             xstFlds = [f.name for f in desc.fields]
-                
+
     #             # only 1 field returned here, the property that is currently executed
     #             for fld in arcpy.Describe(tval).fields:
     #                 if fld.name not in xstFlds:
     #                     arcpy.management.AddField(os.path.join(dest, newName), fld.name, fld.type, fld.precision, fld.scale, fld.length)
-                
+
     #             tblDict = dict()
 
     #             with arcpy.da.SearchCursor(tval, ["mukey", fld.name]) as rows:
@@ -608,51 +615,51 @@ except:
     # if bLyrs == 'true':
     #     aprx = arcpy.mp.ArcGISProject("CURRENT")
     #     m = aprx.listMaps()[0]
-        
+
     #     # add the table just built
     #     m.addDataFromPath(os.path.join(dest, newName))
-        
+
     #     lyrs = [l.name for l in  m.listLayers()]
     #     if  not "SSURGO_On_Demand" in lyrs:
     #         m.addDataFromPath(os.path.join(dest, "SSURGO_On_Demand"))
-                    
+
     #     ssurgoLyr = m.listLayers("SSURGO_On_Demand")[0]
     #     tblLyr = m.listTables(newName)[0]
-        
+
     #     # arcpy.AddMessage(tblLyr.name)
-            
+
     #     try:
     #         # lyrxName =  "SSURGO_On_Demand_" + newName[4:]
-            
+
     #         arcpy.management.ValidateJoin(ssurgoLyr, 'mukey',tblLyr, 'mukey')
     #         arcpy.AddMessage(arcpy.GetMessages())
     #         arcpy.management.JoinField(ssurgoLyr, 'mukey',tblLyr, 'mukey')
-            
+
     #         # arcpy.management.AddJoin(ssurgoLyr, 'mukey',tblLyr, 'mukey')
-            
+
     #     except:
     #         arcpy.AddMessage("Unable to add join")
-        
+
         # create a output lyrx name
         # lyrxName =  "SSURGO_On_Demand_" + newName[4:]
-        
+
         # rename the SSURGO On Demand layer in TOC
         # ssurgoLyr.name
-        
+
         # ssurgoLyr.saveACopy(os.path.join(os.path.dirname(dest), lyrxName + ".lyrx"))
         # arcpy.management.RemoveJoin(ssurgoLyr)
         # m.addDataFromPath(os.path.join(os.path.dirname(dest), theLyr.name + ".lyrx"))
-        
-        
-        
-        
-        
-        
-        
-    
-    
-    
-    
 
-    
-    
+
+
+
+
+
+
+
+
+
+
+
+
+

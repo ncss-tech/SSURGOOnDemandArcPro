@@ -259,7 +259,8 @@ area_in = arcpy.GetParameter(1)
 aggMethod = arcpy.GetParameterAsText(3)
 interpParam = arcpy.GetParameter(4)
 dest = arcpy.GetParameterAsText(5)
-addToSingle = arcpy.GetParameter
+addToSingle = arcpy.GetParameter(6)
+retain = arcpy.GetParameter(7)
 
 arcpy.env.workspace = dest
 fail = list()
@@ -300,7 +301,7 @@ try:
         tblinfo = (aggAbbr.get(aggMethod), tblNameAlias)
         # tblinfo = (aggAbbr.get(aggMethod), 'multi_interps')
 
-        newName = "sod_" + "_".join(map("{0}".format, tblinfo))
+        newName = "SSURGOOnDemand_" + "_".join(map("{0}".format, tblinfo))
         newName = newName.replace("___", "_")
         newName = newName.replace("__", "_")
 
@@ -381,13 +382,8 @@ try:
                     else:
                         arcpy.AddMessage(cntval + " " + state)
 
-                    # add line to separate messages
-                    # arcpy.AddMessage(u"\u200B")
-
             # the tabular call failed, SDA down??? Proceed to the next interp
             else:
-                # fail.append(state + ":" + interp)
-                # arcpy.AddMessage('Error while collecting information returned for ' + interp)
                 arcpy.AddMessage(tabData)
 
     if addToSingle:
@@ -435,7 +431,6 @@ try:
 
                 arcpy.management.AddField(multi, fname, ftype, None, None, flen)
                 flist.append(fname)
-                # arcpy.AddMessage(fname)
 
             # insert mukey into flist for cursors below
             flist.insert(0, 'mukey')
@@ -460,6 +455,12 @@ try:
 
                     else:
                         f.append(row[0])
+
+            if retain:
+                pass
+            else:
+                arcpy.management.Delete(table)
+
 
             # fstr = ','.join(map("'{0}'".format, f))
             # arcpy.AddMessage(fstr)
