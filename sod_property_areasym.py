@@ -364,13 +364,13 @@ bDep = arcpy.GetParameterAsText(5)
 mmC = arcpy.GetParameterAsText(6)
 dest = arcpy.GetParameterAsText(7)
 addToSingle = arcpy.GetParameter(8)
-#retain = arcpy.GetParameter(9)
+retain = arcpy.GetParameter(9)
 # bLyrs = arcpy.GetParameterAsText(7)
 # bSingle = arcpy.GetParameterAsText(8)
 
 arcpy.env.workspace = dest
 
-# arcpy.AddMessage(addToSingle)
+# arcpy.AddMessage(type(tDep))
 
 fail = list()
 
@@ -393,6 +393,8 @@ try:
     states = list(set([x[:2] for x in area_in]))
     states.sort()
 
+    tables = list()
+
     jobs = (len(props)) * len(states)
     n = 0
     arcpy.SetProgressor("default", "SSURGO On-Demand: Jobs(" + str(n) + " of " + str(jobs) + ")")
@@ -402,11 +404,12 @@ try:
         arcpy.AddMessage('Running property: ' + prop )
 
         sdaCol = rslvProps(prop)
-        if addToSingle is False:
-            tblinfo = (aggAbbr.get(aggMethod), sdaCol, tDep, bDep)
 
-        else:
-            tblinfo = (aggAbbr.get(aggMethod), 'multi_props', tDep, bDep)
+        # if addToSingle is False:
+        tblinfo = (aggAbbr.get(aggMethod), sdaCol, tDep, bDep)
+
+        # else:
+            # tblinfo = (aggAbbr.get(aggMethod), 'multi_props', tDep, bDep)
 
         newName = "SSURGOOnDemand_" +  "_".join(map("{0}".format, tblinfo))
         newName = newName.replace("__", "_")
@@ -414,6 +417,8 @@ try:
             newName = newName[:-1]
 
         sod_tab = os.path.join(dest, newName)
+
+        tables.append(sod_tab)
 
         for state in states:
             n += 1
@@ -476,6 +481,86 @@ try:
                 fail.append(state + ':' +prop)
                 arcpy.AddMessage('Error while collecting information returned for ' + prop  + ' for ' + state)
 
+    if addToSingle:
+        # f = list()
+
+        # getting tDep and bDep GetParamaterAsText means
+        # None is converted to empty empty string, test to
+        # name multi appropriately
+        if tDep == "" and bDep == "":
+            multi = os.path.join(dest, 'SSURGOONDemand_' + aggAbbr.get(aggMethod) + '_multi_prop')
+        else:
+            multi = os.path.join(dest, 'SSURGOONDemand_' + aggAbbr.get(aggMethod) + '_' + str(tDep) + '_' + str(bDep) + '_multi_prop')
+
+        # create a list, insert tuples of rows
+        # this is used bc not all interps have
+        # a record for every map unit
+        # effectively a unique set of mukeys accross all the interps
+
+        house = list()
+        for table in tables:
+            with arcpy.da.SearchCursor(table, ['areasymbol', 'musym', 'muname', 'mukey']) as rows:
+                for row in rows:
+                    house.append(row)
+
+        unq = list(set(house))
+        unq.sort()
+
+        arcpy.management.CreateTable(dest, os.path.basename(multi), tables[0])
+
+        for field in arcpy.ListFields(tables[0])[1:4]:
+            arcpy.management.AddField(multi, field.name, field.type, field.length)
+
+        with arcpy.da.InsertCursor(multi, ['areasymbol', 'musym', 'muname', 'mukey']) as cursor:
+
+            for u in unq:
+                cursor.insertRow(u)
+
+        # get the required fields from remaining
+        # tables and add to multi
+        for table in tables:
+            # arcpy.AddMessage(table)
+
+            # get only the last field (soil property)
+            field = arcpy.Describe(table).fields[-1]
+
+            fname = field.name
+            ftype = field.type
+            flen = field.length
+
+            arcpy.management.AddField(multi, fname, ftype, None, None, flen)
+
+            flist = ['mukey', fname]
+
+            # get the data from the current table
+            # to put into the multi talbe
+            data = dict()
+            with arcpy.da.SearchCursor(table, flist) as rows:
+                for row in rows:
+                    data[row[0]] = row[1]
+
+            # add the data to the multi table
+            with arcpy.da.UpdateCursor(multi, flist) as rows:
+                for row in rows:
+                    val = data.get(row[0])
+                    if val:
+                        row[1] = val
+                        # row[2] = val[1]
+                        # row[3] = val[2]
+
+                        rows.updateRow(row)
+
+                    # else:
+                        # f.append(row[0])
+
+            if retain:
+                pass
+            else:
+                arcpy.management.Delete(table)
+
+
+            # fstr = ','.join(map("'{0}'".format, f))
+            # arcpy.AddMessage(fstr)
 
     if len(fail) > 0:
 
@@ -485,7 +570,7 @@ try:
         arcpy.AddMessage(u"\u200B")
 
 except arcpy.ExecuteError:
-    arcpy.AddMessage(arcpy.GetMessages())
+    arcpy.AddError(arcpy.GetMessages())
 
 except:
     # Get the traceback object

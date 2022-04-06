@@ -375,6 +375,15 @@ jobs = 1 + (len(props))
 n = 1
 arcpy.SetProgressor("default", "SSURGO On-Demand: Jobs(" + str(n) + " of " + str(jobs) + ")")
 
+# getting tDep and bDep GetParamaterAsText means
+# None is converted to empty empty string, test to
+# name fname appropriately
+if tDep == "" and bDep == "":
+    fname = "SSURGOOnDemand_property_" + aggAbbr.get(aggMethod)
+else:
+    fname = "SSURGOOnDemand_property_" + aggAbbr.get(aggMethod) + "_" + tDep + "_" + bDep
+
+
 try:
 
     # ========================= Get the SSURGO Geometry =========================
@@ -501,7 +510,7 @@ try:
                     row = geom, mukey
                     cursor.insertRow(row)
 
-            arcpy.analysis.Clip(os.path.join(dest, "sod_temp_" + rid), os.path.join(dest, "sod_sngl_prt_" + rid),  os.path.join(dest, "SSURGOOnDemand_property_" + aggAbbr.get(aggMethod)))
+            arcpy.analysis.Clip(os.path.join(dest, "sod_temp_" + rid), os.path.join(dest, "sod_sngl_prt_" + rid),  os.path.join(dest, fname))
 
             # clean up temporary files
             for f in arcpy.ListFeatureClasses("*_" + rid):
@@ -510,7 +519,7 @@ try:
 
             # ========================= Get the mukeys of the returned geometry =========================
 
-            with arcpy.da.SearchCursor(os.path.join(dest, "SSURGOOnDemand_property_" + aggAbbr.get(aggMethod)), "mukey") as rows:
+            with arcpy.da.SearchCursor(os.path.join(dest, fname), "mukey") as rows:
                 geoKeys = sorted({row[0] for row in rows})
 
             keys = ",".join(map("'{0}'".format, geoKeys))
@@ -543,7 +552,7 @@ try:
 
                         tblinfo = (aggAbbr.get(aggMethod), sdaCol, tDep, bDep)
 
-                        newName = "sod_" +  "_".join(map("{0}".format, tblinfo))
+                        newName = "SSURGOOnDemand" +  "_".join(map("{0}".format, tblinfo))
                         newName = newName.replace("__", "_")
                         if newName.endswith("_"):
                             newName = newName[:-1]
@@ -567,7 +576,7 @@ try:
 
                         if addToGeom == 'true':
 
-                            sod_geom = os.path.join(dest, "SSURGOOnDemand_property_" + aggAbbr.get(aggMethod))
+                            sod_geom = os.path.join(dest, fname)
                             sod_tab = os.path.join(dest, newName)
 
                             updateTable(sod_geom, sod_tab)

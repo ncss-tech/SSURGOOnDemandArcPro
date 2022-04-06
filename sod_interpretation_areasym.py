@@ -389,7 +389,7 @@ try:
     if addToSingle:
         f = list()
         # copy the first table to use as a template
-        multi = os.path.join(dest, 'sod_' + aggAbbr.get(aggMethod) + "_multi_interps")
+        multi = os.path.join(dest, 'SSURGOONDemand_' + aggAbbr.get(aggMethod) + "_multi_interps")
 
         # create a list, insert tuples of rows
         # this is used bc not all interps have
@@ -404,7 +404,7 @@ try:
         unq = list(set(house))
         unq.sort()
 
-        arcpy.management.CreateTable(dest, 'sod_' + aggAbbr.get(aggMethod) + "_multi_interps", tables[0])
+        arcpy.management.CreateTable(dest, 'SSURGOONDemand_' + aggAbbr.get(aggMethod) + "_multi_interps", tables[0])
         for field in arcpy.ListFields(tables[0])[1:4]:
             arcpy.management.AddField(multi, field.name, field.type, field.length)
 
@@ -474,7 +474,7 @@ try:
         arcpy.AddMessage(u"\u200B")
 
 except arcpy.ExecuteError:
-    arcpy.AddMessage(arcpy.GetMessages())
+    arcpy.AddError(arcpy.GetMessages())
 
 except:
     # Get the traceback object
