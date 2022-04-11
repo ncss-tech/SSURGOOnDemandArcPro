@@ -1,8 +1,8 @@
 def sda(q=str, meta=False):
-    """accessing Soil Data Access POST REST API\n
+    """accessing Soil Data Access POST REST API
        
-       :str q: query sent to doil data access\n
-       :bool meta: instructions for returning column information\n
+       :str q: query sent to doil data access
+       :bool meta: instructions for returning column information
        :return: python dictionary"""
     
     import requests, json
@@ -33,13 +33,16 @@ def sda(q=str, meta=False):
         return True, data
         
     except JSONDecodeError as e:
-        # msg = 'JSON Decode error: ' + e
-        return False, e
+        msg = e
+        print(msg)
+        return False, msg
     
     except requests.exceptions.RequestException as e:
-        msg = e
-        return False, msg
+        # msg = e.msg
+        # print('Requests error: ' + msg)
+        return False, e
     
     except Exception as e:
         msg = 'Unhadled error in Soil Data Access caller ' + e
+        print(msg)
         return False, msg
