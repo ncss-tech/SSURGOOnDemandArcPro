@@ -74,9 +74,13 @@ if resp:
     df.drop(['date', 'db'], axis = 1, inplace=True)
 
     # arcpy.AddMessage(df)
+    dlCount = len(df)
+    n=1
+    arcpy.SetProgressor("step", "Downloading SSURGO " + str(n) + ' of ' + str(dlCount), 0, dlCount, 1)
 
     for areasymbol, areaname, url in zip(df['areasymbol'], df['areaname'], df['URL']):
 
+        arcpy.SetProgressorLabel("Downloading SSURGO " + str(n) + ' of ' + str(dlCount))
 
         try:
 
@@ -94,6 +98,7 @@ if resp:
 
             open(os.path.join(dest,(os.path.basename(url))), 'wb').write(r.content)
 
+
             if unpack == 'true':
 
                 with zipfile.ZipFile(os.path.join(dest,os.path.basename(url)), 'r') as z:
@@ -104,6 +109,9 @@ if resp:
                     area = base[8:13]
                     org = os.path.join(dest, area)
                     os.rename(org, os.path.join(dest, 'soil_' + area.lower()))
+
+            arcpy.SetProgressorPosition()
+            n+=1
 
         except OSError as e:
             arcpy.AddError(e)
